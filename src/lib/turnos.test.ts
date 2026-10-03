@@ -132,6 +132,24 @@ d("circuito de reservas", async () => {
     expect(await prisma.turno.count({ where: { estado: "CONFIRMADO" } })).toBe(1);
   });
 
+  it("una reserva con el email de otra clienta no pisa su ficha", async () => {
+    await t.crearReserva(datos({ nombre: "Lucía Gómez", telefono: "1155554444" }));
+    await t.crearReserva(datos({ hora: "15:00", nombre: "Otra Persona", telefono: "1199999999" }));
+    const c = await prisma.clienta.findUniqueOrThrow({ where: { email: "lucia@example.com" } });
+    expect(c.nombre).toBe("Lucía Gómez");
+    expect(c.telefono).toBe("1155554444");
+  });
+
+  it("la misma clienta nueva reservando dos cosas a la vez no da error", async () => {
+    await prisma.clienta.deleteMany({ where: { email: "nueva@example.com" } });
+    const r = await Promise.allSettled([
+      t.crearReserva(datos({ hora: "09:00", email: "nueva@example.com" })),
+      t.crearReserva(datos({ hora: "15:00", email: "nueva@example.com" })),
+    ]);
+    expect(r.map((x) => x.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect(await prisma.clienta.count({ where: { email: "nueva@example.com" } })).toBe(1);
+  });
+
   it("respeta los bloqueos", async () => {
     await prisma.bloqueo.create({ data: { desde: aFechaUTC(sabado, "00:00"), hasta: aFechaUTC(sabado, "23:59"), motivo: "Feriado" } });
     expect(await t.horariosDisponibles(facial, sabado)).toEqual([]);
@@ -179,11 +197,41 @@ d("circuito de reservas", async () => {
       expect((await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } })).estado).toBe("PENDIENTE_PAGO");
     });
 
-    it("un pago por menos de la seña no confirma", async () => {
+    it("un pago por menos de la seña no confirma, queda registrado y avisa una sola vez", async () => {
       const r = await t.crearReserva(datos());
       mp.pagos.set("333", { id: "333", estado: "approved", turnoId: r.turnoId, monto: 1 });
       await t.procesarPago("333");
-      expect((await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } })).estado).toBe("PENDIENTE_PAGO");
+      await t.procesarPago("333");
+      const turno = await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } });
+      expect(turno.estado).toBe("PENDIENTE_PAGO");
+      expect(turno.mpPaymentId).toBe("333");
+      expect(turno.pagoEstado).toBe("approved_monto_insuficiente");
+      expect(mails.map((m) => m.to)).toEqual(["pro@example.com"]);
+    });
+
+    it("pago aprobado de un turno cancelado mientras pagaba: queda registrado y avisa", async () => {
+      const r = await t.crearReserva(datos());
+      await t.cancelarTurno(r.turnoId, "admin");
+      mp.pagos.set("666", { id: "666", estado: "approved", turnoId: r.turnoId, monto: 10000 });
+      await t.procesarPago("666");
+      await t.procesarPago("666");
+      const turno = await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } });
+      expect(turno.estado).toBe("CANCELADO");
+      expect(turno.mpPaymentId).toBe("666");
+      expect(turno.pagoEstado).toBe("approved_a_revisar");
+      expect(mails.map((m) => m.to)).toEqual(["pro@example.com"]);
+    });
+
+    it("dos pagos tardíos simultáneos para el mismo horario: sólo uno se confirma", async () => {
+      const a = await t.crearReserva(datos({ email: "a@example.com" }));
+      await prisma.turno.update({ where: { id: a.turnoId }, data: { expiraEn: new Date(Date.now() - 1000) } });
+      const b = await t.crearReserva(datos({ email: "b@example.com" }));
+      await prisma.turno.update({ where: { id: b.turnoId }, data: { expiraEn: new Date(Date.now() - 1000) } });
+      mp.pagos.set("777", { id: "777", estado: "approved", turnoId: a.turnoId, monto: 10000 });
+      mp.pagos.set("888", { id: "888", estado: "approved", turnoId: b.turnoId, monto: 10000 });
+      await Promise.all([t.procesarPago("777"), t.procesarPago("888")]);
+      const estados = (await prisma.turno.findMany({ where: { id: { in: [a.turnoId, b.turnoId] } } })).map((x) => x.estado).sort();
+      expect(estados).toEqual(["CANCELADO", "CONFIRMADO"]);
     });
 
     it("si no paga a tiempo el horario se libera", async () => {

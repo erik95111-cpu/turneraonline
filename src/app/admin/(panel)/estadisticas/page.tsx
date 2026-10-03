@@ -2,8 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { aFechaUTC, fechaISO } from "@/lib/tiempo";
 import { formatPrecio } from "@/lib/formato";
+import { MESES } from "@/lib/dias";
 
-const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
 export default async function Estadisticas({ searchParams }: { searchParams: Promise<{ mes?: string }> }) {
   const sp = await searchParams;

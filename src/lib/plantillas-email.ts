@@ -139,15 +139,17 @@ ${boton(linkTurno(t), "Ver o cancelar mi turno")}`);
   };
 }
 
-export function mailPagoSinLugar(cfg: Configuracion, t: TurnoCompleto): Mail {
-  const html = layout(cfg, "⚠️ Pago recibido sin horario disponible", `
-${p(`Mercado Pago aprobó la seña de <strong>${esc(t.clienta.nombre)}</strong> después de que venció la reserva, y el horario ya fue tomado por otra persona.`)}
+/** Aviso a la profesional de un pago que no se pudo aplicar automáticamente */
+export function mailPagoARevisar(cfg: Configuracion, t: TurnoCompleto, motivo: string, monto: number): Mail {
+  const html = layout(cfg, "⚠️ Pago para revisar", `
+${p(`Mercado Pago aprobó un pago de <strong>${formatPrecio(monto)}</strong> de <strong>${esc(t.clienta.nombre)}</strong>, pero no se pudo confirmar el turno automáticamente:`)}
+${p(`<em>${esc(motivo)}</em>`)}
 ${detalle(t)}
-${p(`Contactala para reprogramar o devolver la seña: ${esc(t.clienta.email)} · ${esc(t.clienta.telefono)}`)}`);
+${p(`Contactala para reprogramar o devolver el dinero: ${esc(t.clienta.email)} · ${esc(t.clienta.telefono)}`)}`);
   return {
     to: cfg.emailProfesional,
-    subject: `Revisar: seña pagada sin horario (${t.clienta.nombre})`,
+    subject: `Revisar pago de ${t.clienta.nombre}`,
     html,
-    text: `Seña pagada sin horario disponible: ${t.clienta.nombre} ${t.clienta.email} ${t.clienta.telefono}\n\n${textoPlano(t)}`,
+    text: `Pago para revisar (${formatPrecio(monto)}): ${motivo}\n${t.clienta.nombre} ${t.clienta.email} ${t.clienta.telefono}\n\n${textoPlano(t)}`,
   };
 }

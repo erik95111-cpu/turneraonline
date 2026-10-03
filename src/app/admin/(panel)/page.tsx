@@ -5,7 +5,7 @@ import { formatPrecio, linkWhatsapp } from "@/lib/formato";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { cambiarEstadoTurno } from "../acciones";
 
-export default async function Agenda({ searchParams }: { searchParams: Promise<{ desde?: string }> }) {
+export default async function Agenda({ searchParams }: { searchParams: Promise<{ desde?: string; aviso?: string }> }) {
   const sp = await searchParams;
   const hoy = fechaISO(new Date());
   const desde = sp.desde && /^\d{4}-\d{2}-\d{2}$/.test(sp.desde) ? sp.desde : hoy;
@@ -47,6 +47,10 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
         </div>
       </div>
 
+      {sp.aviso && (
+        <p role="alert" className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{sp.aviso}</p>
+      )}
+
       <div className="space-y-6">
         {dias.map((dia) => {
           const delDia = turnos.filter((t) => fechaISO(t.inicio) === dia);
@@ -77,13 +81,13 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
                         )}
                         {t.estado === "CONFIRMADO" && (
                           <>
-                            <EstadoForm id={t.id} estado="COMPLETADO" label="Realizado" />
-                            <EstadoForm id={t.id} estado="AUSENTE" label="No vino" />
-                            <EstadoForm id={t.id} estado="CANCELADO" label="Cancelar" />
+                            <EstadoForm id={t.id} desde={desde} estado="COMPLETADO" label="Realizado" />
+                            <EstadoForm id={t.id} desde={desde} estado="AUSENTE" label="No vino" />
+                            <EstadoForm id={t.id} desde={desde} estado="CANCELADO" label="Cancelar" />
                           </>
                         )}
                         {(t.estado === "COMPLETADO" || t.estado === "AUSENTE") && (
-                          <EstadoForm id={t.id} estado="CONFIRMADO" label="Deshacer" />
+                          <EstadoForm id={t.id} desde={desde} estado="CONFIRMADO" label="Deshacer" />
                         )}
                       </div>
                     </li>
@@ -98,10 +102,11 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
   );
 }
 
-function EstadoForm({ id, estado, label }: { id: string; estado: string; label: string }) {
+function EstadoForm({ id, desde, estado, label }: { id: string; desde: string; estado: string; label: string }) {
   return (
     <form action={cambiarEstadoTurno}>
       <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="desde" value={desde} />
       <input type="hidden" name="estado" value={estado} />
       <button className="btn-sec">{label}</button>
     </form>

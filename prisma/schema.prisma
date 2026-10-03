@@ -110,9 +110,9 @@ model Configuracion {
   sobreMi              String   @default("")
   /// URL de YouTube, Vimeo o un .mp4
   videoUrl             String   @default("")
-  senaTipo             TipoSena @default(PORCENTAJE)
+  senaTipo             TipoSena @default(FIJO)
   /// Porcentaje (0-100) o monto fijo en pesos según senaTipo
-  senaValor            Int      @default(30)
+  senaValor            Int      @default(10000)
   /// Cada cuántos minutos se ofrecen horarios
   intervaloMin         Int      @default(30)
   anticipacionMinHoras Int      @default(3)

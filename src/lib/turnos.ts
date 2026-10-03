@@ -12,10 +12,30 @@ import {
   mailCancelacion,
   mailConfirmacionClienta,
   mailNuevoTurnoProfesional,
-  mailPagoSinLugar,
+  mailPagoARevisar,
 } from "./plantillas-email";
 
 type Tx = Prisma.TransactionClient;
+
+/** Errores de concurrencia de Postgres/Prisma que se resuelven reintentando */
+function esConflicto(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2034" || err.code === "P2002");
+}
+
+/**
+ * Corre una transacción SERIALIZABLE y la reintenta si choca con otra.
+ * En el reintento se ve lo que la otra ya guardó (ej: el horario ocupado).
+ */
+async function transaccion<T>(fn: (tx: Tx) => Promise<T>, intentos = 4): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await prisma.$transaction(fn, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (err) {
+      if (!esConflicto(err) || i >= intentos) throw err;
+      await new Promise((r) => setTimeout(r, 20 * i + Math.random() * 50));
+    }
+  }
+}
 
 /** Turnos que ocupan agenda: confirmados o pendientes de pago todavía vigentes */
 function filtroOcupa(ahora: Date): Prisma.TurnoWhereInput {
@@ -98,8 +118,7 @@ export async function crearReserva(
   const cfg = await getConfig();
   const cobrarSena = !opciones.sinSena && mpHabilitado() && cfg.senaTipo !== "NINGUNA";
 
-  const turno = await prisma.$transaction(
-    async (tx) => {
+  const turno = await transaccion(async (tx) => {
       const servicio = await tx.servicio.findFirst({ where: { id: datos.servicioId, activo: true } });
       if (!servicio) throw new ErrorReserva("El tratamiento elegido no está disponible");
 
@@ -108,9 +127,10 @@ export async function crearReserva(
         throw new ErrorReserva("Ese horario ya no está disponible. Elegí otro, por favor.");
       }
 
+      // Si la clienta ya existe no pisamos su ficha (nombre/teléfono los edita la profesional)
       const clienta = await tx.clienta.upsert({
         where: { email: datos.email },
-        update: { nombre: datos.nombre, telefono: datos.telefono },
+        update: {},
         create: { nombre: datos.nombre, email: datos.email, telefono: datos.telefono },
       });
 
@@ -134,13 +154,9 @@ export async function crearReserva(
         },
         include: incluir,
       });
-    },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-  ).catch((err) => {
-    // Conflicto de concurrencia: dos personas reservando el mismo horario a la vez
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2034") {
-      throw new ErrorReserva("Ese horario se acaba de ocupar. Elegí otro, por favor.");
-    }
+  }).catch((err) => {
+    // Muchísima concurrencia: después de varios reintentos pedimos que pruebe de nuevo
+    if (esConflicto(err)) throw new ErrorReserva("Hay mucha demanda en este momento. Probá de nuevo en unos segundos.");
     throw err;
   });
 
@@ -182,50 +198,75 @@ async function notificarConfirmacion(turnoId: string) {
 /**
  * Consulta un pago en Mercado Pago y, si está aprobado, confirma el turno.
  * Es idempotente: se puede llamar desde el webhook y desde la página de vuelta.
+ * Todo pago aprobado que no se pueda aplicar queda registrado y se avisa a la profesional.
  */
 export async function procesarPago(paymentId: string): Promise<void> {
   const pago = await obtenerPago(paymentId);
   if (!pago.turnoId) return;
 
-  const turno = await prisma.turno.findUnique({ where: { id: pago.turnoId }, include: incluir });
-  if (!turno || turno.estado !== "PENDIENTE_PAGO") return;
+  const resultado = await transaccion(async (tx) => {
+    const turno = await tx.turno.findUnique({ where: { id: pago.turnoId } });
+    if (!turno) return null;
+    // Ya procesado (el webhook puede llegar varias veces)
+    const yaVisto = turno.mpPaymentId === pago.id;
+    if (yaVisto && (turno.pagoEstado === pago.estado || turno.pagoEstado?.startsWith("approved"))) return null;
 
-  // El pago tiene que cubrir la seña (evita confirmar con un pago de otro monto)
-  if (pago.estado === "approved" && pago.monto + 0.01 < turno.montoSena) {
-    console.error(`[mercadopago] Pago ${pago.id} por ${pago.monto} no cubre la seña de ${turno.montoSena}`);
-    return;
-  }
+    const aprobado = pago.estado === "approved";
 
-  if (pago.estado !== "approved") {
-    await prisma.turno.update({ where: { id: turno.id }, data: { mpPaymentId: pago.id, pagoEstado: pago.estado } });
-    return;
-  }
+    if (!aprobado) {
+      if (turno.estado === "PENDIENTE_PAGO") {
+        await tx.turno.update({ where: { id: turno.id }, data: { mpPaymentId: pago.id, pagoEstado: pago.estado } });
+      }
+      return null;
+    }
 
-  // Si el pago llegó tarde, verificar que nadie haya tomado el horario
-  const conflicto = await prisma.turno.count({
-    where: {
-      id: { not: turno.id },
-      inicio: { lt: turno.fin },
-      fin: { gt: turno.inicio },
-      ...filtroOcupa(new Date()),
-    },
-  });
-  const bloqueado = await prisma.bloqueo.count({ where: { desde: { lt: turno.fin }, hasta: { gt: turno.inicio } } });
+    // Pago aprobado sobre un turno que ya no espera pago (cancelado mientras pagaba, etc.)
+    if (turno.estado !== "PENDIENTE_PAGO") {
+      await tx.turno.update({
+        where: { id: turno.id },
+        // Si ya tenía otro pago aprobado lo conservamos; si no, registramos éste
+        data: turno.pagoEstado?.startsWith("approved") ? {} : { mpPaymentId: pago.id, pagoEstado: "approved_a_revisar" },
+      });
+      return { revisar: "El pago llegó cuando el turno ya no estaba pendiente (por ejemplo, fue cancelado)." };
+    }
 
-  if (conflicto || bloqueado) {
-    const r = await prisma.turno.updateMany({
-      where: { id: turno.id, estado: "PENDIENTE_PAGO" },
-      data: { estado: "CANCELADO", mpPaymentId: pago.id, pagoEstado: "approved_sin_lugar" },
+    // El pago tiene que cubrir la seña
+    if (pago.monto + 0.01 < turno.montoSena) {
+      await tx.turno.update({ where: { id: turno.id }, data: { mpPaymentId: pago.id, pagoEstado: "approved_monto_insuficiente" } });
+      return { revisar: `El monto pagado no cubre la seña de ${turno.montoSena}.` };
+    }
+
+    // Si el pago llegó tarde, verificar que nadie haya tomado el horario
+    const choque =
+      (await tx.turno.count({
+        where: { id: { not: turno.id }, inicio: { lt: turno.fin }, fin: { gt: turno.inicio }, ...filtroOcupa(new Date()) },
+      })) +
+      (await tx.bloqueo.count({ where: { desde: { lt: turno.fin }, hasta: { gt: turno.inicio } } }));
+
+    if (choque) {
+      await tx.turno.update({
+        where: { id: turno.id },
+        data: { estado: "CANCELADO", mpPaymentId: pago.id, pagoEstado: "approved_sin_lugar" },
+      });
+      return { revisar: "El pago llegó después de que venció la reserva y el horario ya estaba ocupado." };
+    }
+
+    await tx.turno.update({
+      where: { id: turno.id },
+      data: { estado: "CONFIRMADO", mpPaymentId: pago.id, pagoEstado: "approved", expiraEn: null },
     });
-    if (r.count) await enviarMail(mailPagoSinLugar(await getConfig(), turno));
-    return;
-  }
-
-  const r = await prisma.turno.updateMany({
-    where: { id: turno.id, estado: "PENDIENTE_PAGO" },
-    data: { estado: "CONFIRMADO", mpPaymentId: pago.id, pagoEstado: "approved", expiraEn: null },
+    return { confirmado: true };
   });
-  if (r.count) await notificarConfirmacion(turno.id);
+
+  if (resultado && "confirmado" in resultado) {
+    await notificarConfirmacion(pago.turnoId);
+  } else if (resultado && "revisar" in resultado) {
+    const [cfg, t] = await Promise.all([
+      getConfig(),
+      prisma.turno.findUniqueOrThrow({ where: { id: pago.turnoId }, include: incluir }),
+    ]);
+    await enviarMail(mailPagoARevisar(cfg, t, resultado.revisar, pago.monto));
+  }
 }
 
 export async function cancelarTurno(turnoId: string, por: "clienta" | "admin"): Promise<void> {

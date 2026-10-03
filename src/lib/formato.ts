@@ -1,3 +1,5 @@
+import { DIAS_PLURAL, ORDEN_SEMANA } from "./dias";
+
 const pesos = new Intl.NumberFormat("es-AR", {
   style: "currency",
   currency: "ARS",
@@ -27,12 +29,10 @@ export function linkInstagram(usuario: string): string {
   return `https://instagram.com/${usuario.replace(/^@/, "")}`;
 }
 
-const DIAS_PLURAL = ["Domingos", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábados"];
-
 /** ["Sábados · 09:00 a 13:00 y 14:00 a 18:00", …] agrupando días con el mismo horario */
 export function resumenHorarios(franjas: { diaSemana: number; horaInicio: string; horaFin: string }[]): string[] {
   const porDia = new Map<number, string>();
-  for (const d of [1, 2, 3, 4, 5, 6, 0]) {
+  for (const d of ORDEN_SEMANA) {
     const del = franjas
       .filter((f) => f.diaSemana === d)
       .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))

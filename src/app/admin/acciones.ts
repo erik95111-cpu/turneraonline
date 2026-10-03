@@ -28,16 +28,23 @@ export async function cambiarEstadoTurno(fd: FormData) {
   await requireAdmin();
   const id = txt(fd, "id");
   const estado = txt(fd, "estado") as EstadoTurno;
+  const desde = txt(fd, "desde");
+  let aviso = "";
   if (estado === "CANCELADO") {
     try {
       await cancelarTurno(id, "admin");
     } catch (err) {
       if (!(err instanceof ErrorReserva)) throw err;
+      aviso = err.message;
     }
   } else if (["COMPLETADO", "AUSENTE", "CONFIRMADO"].includes(estado)) {
     await prisma.turno.update({ where: { id }, data: { estado } });
   }
   refrescar();
+  if (aviso) {
+    const q = new URLSearchParams({ aviso, ...(desde ? { desde } : {}) });
+    redirect(`/admin?${q}`);
+  }
 }
 
 export async function reservarDesdePanel(input: unknown): Promise<ResultadoReserva> {

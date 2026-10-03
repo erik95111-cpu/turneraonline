@@ -5,6 +5,7 @@ import type { TipoSena } from "@prisma/client";
 import { Calendario } from "./Calendario";
 import { formatDuracion, formatPrecio } from "@/lib/formato";
 import { calcularSena } from "@/lib/sena";
+import { DIAS, MESES } from "@/lib/dias";
 import type { ResultadoReserva } from "@/app/actions/reservas";
 
 export interface ServicioReserva {
@@ -28,13 +29,12 @@ interface Props {
   tema?: "oscuro" | "claro";
 }
 
-const DIAS_LARGO = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-const MESES_LARGO = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-
 function fechaTexto(f: string) {
   const d = new Date(`${f}T12:00:00Z`);
-  return `${DIAS_LARGO[d.getUTCDay()]} ${d.getUTCDate()} de ${MESES_LARGO[d.getUTCMonth()]}`;
+  return `${DIAS[d.getUTCDay()].toLowerCase()} ${d.getUTCDate()} de ${MESES[d.getUTCMonth()].toLowerCase()}`;
 }
+
+const VACIO = { nombre: "", email: "", telefono: "", notas: "" };
 
 export function Reserva(p: Props) {
   const claro = p.tema === "claro";
@@ -45,6 +45,9 @@ export function Reserva(p: Props) {
   const [horarios, setHorarios] = useState<string[] | null>(null);
   const [hora, setHora] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorHorarios, setErrorHorarios] = useState(false);
+  const [recarga, setRecarga] = useState(0);
+  const [form, setForm] = useState(VACIO);
   const [enviando, startTransition] = useTransition();
 
   const servicio = p.servicios.find((s) => s.id === servicioId) ?? null;
@@ -54,14 +57,25 @@ export function Reserva(p: Props) {
   useEffect(() => {
     setHora(null);
     setHorarios(null);
+    setErrorHorarios(false);
     if (!servicioId || !fecha) return;
     const ctrl = new AbortController();
     fetch(`/api/disponibilidad?servicio=${servicioId}&fecha=${fecha}${claro ? "&panel=1" : ""}`, { signal: ctrl.signal })
-      .then((r) => r.json())
-      .then((d: { horarios: string[] }) => setHorarios(d.horarios))
-      .catch(() => {});
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json() as Promise<{ horarios: string[] }>;
+      })
+      .then((d) => setHorarios(Array.isArray(d.horarios) ? d.horarios : []))
+      .catch((e: unknown) => {
+        if ((e as Error).name !== "AbortError") setErrorHorarios(true);
+      });
     return () => ctrl.abort();
-  }, [servicioId, fecha, claro]);
+  }, [servicioId, fecha, claro, recarga]);
+
+  const campoForm = (k: keyof typeof VACIO) => ({
+    value: form[k],
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value })),
+  });
 
   function enviar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -74,10 +88,7 @@ export function Reserva(p: Props) {
           servicioId: servicio.id,
           fecha,
           hora,
-          nombre: fd.get("nombre"),
-          email: fd.get("email"),
-          telefono: fd.get("telefono"),
-          notas: fd.get("notas") ?? "",
+          ...form,
         },
         String(fd.get("website") ?? ""),
       );
@@ -85,12 +96,8 @@ export function Reserva(p: Props) {
         window.location.href = r.url;
       } else {
         setError(r.error);
-        if (/horario/i.test(r.error)) {
-          setHora(null);
-          const f = fecha;
-          setFecha(null);
-          setTimeout(() => setFecha(f), 0);
-        }
+        // Si el horario se ocupó, recargamos los horarios (los datos cargados se conservan)
+        if (/horario/i.test(r.error)) setRecarga((n) => n + 1);
       }
     });
   }
@@ -153,7 +160,13 @@ export function Reserva(p: Props) {
               {fecha && (
                 <>
                   <p className={`mb-3 text-sm first-letter:uppercase ${sub}`}>{fechaTexto(fecha)}</p>
-                  {horarios === null && <p className={`text-sm ${sub}`}>Buscando horarios…</p>}
+                  {errorHorarios && (
+                    <p className={`text-sm ${sub}`}>
+                      No pudimos cargar los horarios.{" "}
+                      <button type="button" className="underline" onClick={() => setRecarga((n) => n + 1)}>Reintentar</button>
+                    </p>
+                  )}
+                  {horarios === null && !errorHorarios && <p className={`text-sm ${sub}`}>Buscando horarios…</p>}
                   {horarios?.length === 0 && (
                     <p className={`text-sm ${sub}`}>No quedan horarios libres este día. Probá con otra fecha.</p>
                   )}
@@ -162,7 +175,7 @@ export function Reserva(p: Props) {
                       <button
                         key={h}
                         type="button"
-                        onClick={() => setHora(h)}
+                        onClick={() => { setHora(h); setError(null); }}
                         className={[
                           "rounded-lg border py-2 text-sm transition",
                           hora === h
@@ -201,33 +214,35 @@ export function Reserva(p: Props) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className={claro ? "lbl" : `mb-1.5 block text-xs ${sub}`} htmlFor="nombre">Nombre y apellido</label>
-              <input id="nombre" name="nombre" required minLength={2} autoComplete="name" className={campo} />
+              <input id="nombre" name="nombre" required minLength={2} autoComplete="name" className={campo} {...campoForm("nombre")} />
             </div>
             <div>
               <label className={claro ? "lbl" : `mb-1.5 block text-xs ${sub}`} htmlFor="email">Email</label>
-              <input id="email" name="email" type="email" required autoComplete="email" className={campo} />
+              <input id="email" name="email" type="email" required autoComplete="email" className={campo} {...campoForm("email")} />
             </div>
             <div>
               <label className={claro ? "lbl" : `mb-1.5 block text-xs ${sub}`} htmlFor="telefono">WhatsApp / Teléfono</label>
-              <input id="telefono" name="telefono" type="tel" required minLength={6} autoComplete="tel" placeholder="Ej: 11 2345 6789" className={campo} />
+              <input id="telefono" name="telefono" type="tel" required minLength={6} autoComplete="tel" placeholder="Ej: 11 2345 6789" className={campo} {...campoForm("telefono")} />
             </div>
             <div className="sm:col-span-2">
               <label className={claro ? "lbl" : `mb-1.5 block text-xs ${sub}`} htmlFor="notas">Comentarios (opcional)</label>
-              <textarea id="notas" name="notas" rows={3} maxLength={500} placeholder="Alergias, consultas, si es tu primera vez…" className={campo} />
+              <textarea id="notas" name="notas" rows={3} maxLength={500} placeholder="Alergias, consultas, si es tu primera vez…" className={campo} {...campoForm("notas")} />
             </div>
             {/* Campo trampa para bots: queda oculto para las personas */}
             <input name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
           </div>
 
           {p.politica && <p className={`mt-5 text-xs leading-relaxed ${sub}`}>{p.politica}</p>}
-          {error && (
-            <p role="alert" className="mt-5 rounded-lg border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-400">{error}</p>
-          )}
 
           <button type="submit" disabled={enviando} className={`mt-6 w-full sm:w-auto ${claro ? "btn" : "btn-oro"}`}>
             {enviando ? "Procesando…" : montoSena > 0 ? `Pagar seña con Mercado Pago` : "Confirmar turno"}
           </button>
         </form>
+      )}
+
+      {/* Fuera del formulario: sigue visible aunque haya que elegir otro horario */}
+      {error && (
+        <p role="alert" className="rounded-lg border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-500">{error}</p>
       )}
     </div>
   );

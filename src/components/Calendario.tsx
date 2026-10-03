@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 
-const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-const DIAS = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"];
+import { DIAS_CORTO, MESES, ORDEN_SEMANA } from "@/lib/dias";
+
+const DIAS = ORDEN_SEMANA.map((d) => DIAS_CORTO[d]);
 
 const iso = (y: number, m: number, d: number) =>
   `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;

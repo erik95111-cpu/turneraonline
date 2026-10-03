@@ -1,9 +1,8 @@
 import { prisma } from "@/lib/db";
 import { fechaHoraLarga } from "@/lib/tiempo";
+import { DIAS, ORDEN_SEMANA as ORDEN } from "@/lib/dias";
 import { agregarBloqueo, agregarFranja, eliminarBloqueo, eliminarFranja } from "../../acciones";
 
-const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-const ORDEN = [1, 2, 3, 4, 5, 6, 0];
 
 export default async function Horarios() {
   const [franjas, bloqueos] = await Promise.all([
