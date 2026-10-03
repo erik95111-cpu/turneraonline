@@ -62,3 +62,25 @@ describe("calcularSena", () => {
     expect(calcularSena(35_000, "NINGUNA", 30)).toBe(0);
   });
 });
+
+import { resumenHorarios } from "./formato";
+
+describe("resumenHorarios", () => {
+  it("agrupa franjas de los sábados", () => {
+    expect(
+      resumenHorarios([
+        { diaSemana: 6, horaInicio: "14:00", horaFin: "18:00" },
+        { diaSemana: 6, horaInicio: "09:00", horaFin: "13:00" },
+      ]),
+    ).toEqual(["Sábados · 09:00 a 13:00 y 14:00 a 18:00"]);
+  });
+  it("agrupa días con el mismo horario", () => {
+    expect(
+      resumenHorarios([
+        { diaSemana: 1, horaInicio: "09:00", horaFin: "13:00" },
+        { diaSemana: 2, horaInicio: "09:00", horaFin: "13:00" },
+        { diaSemana: 6, horaInicio: "10:00", horaFin: "12:00" },
+      ]),
+    ).toEqual(["Lunes, Martes · 09:00 a 13:00", "Sábados · 10:00 a 12:00"]);
+  });
+});

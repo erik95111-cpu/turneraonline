@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "./db";
@@ -129,6 +130,7 @@ export async function crearReserva(
           expiraEn: pendiente ? new Date(Date.now() + cfg.minutosParaPagar * 60_000) : null,
           notasClienta: datos.notas,
           creadoPorAdmin: Boolean(opciones.porAdmin),
+          token: randomBytes(24).toString("base64url"),
         },
         include: incluir,
       });
@@ -188,6 +190,12 @@ export async function procesarPago(paymentId: string): Promise<void> {
   const turno = await prisma.turno.findUnique({ where: { id: pago.turnoId }, include: incluir });
   if (!turno || turno.estado !== "PENDIENTE_PAGO") return;
 
+  // El pago tiene que cubrir la seña (evita confirmar con un pago de otro monto)
+  if (pago.estado === "approved" && pago.monto + 0.01 < turno.montoSena) {
+    console.error(`[mercadopago] Pago ${pago.id} por ${pago.monto} no cubre la seña de ${turno.montoSena}`);
+    return;
+  }
+
   if (pago.estado !== "approved") {
     await prisma.turno.update({ where: { id: turno.id }, data: { mpPaymentId: pago.id, pagoEstado: pago.estado } });
     return;
@@ -235,7 +243,12 @@ export async function cancelarTurno(turnoId: string, por: "clienta" | "admin"): 
     }
   }
   const eraConfirmado = turno.estado === "CONFIRMADO";
-  await prisma.turno.update({ where: { id: turno.id }, data: { estado: "CANCELADO" } });
+  // Condicional: si justo cambió de estado (ej: se confirmó el pago) no pisamos nada
+  const r = await prisma.turno.updateMany({
+    where: { id: turno.id, estado: turno.estado },
+    data: { estado: "CANCELADO" },
+  });
+  if (!r.count) throw new ErrorReserva("El turno cambió de estado. Recargá la página.");
 
   if (eraConfirmado) {
     await Promise.all([

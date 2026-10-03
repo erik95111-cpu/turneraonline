@@ -27,6 +27,9 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
       <div className="grid gap-3 sm:grid-cols-2">
         <Estado ok={smtp} titulo="Envío de mails" detalle={smtp ? "Configurado" : "Falta configurar SMTP_* (ver README)"} />
         <Estado ok={mp} titulo="Mercado Pago" detalle={mp ? "Conectado" : "Falta MP_ACCESS_TOKEN: los turnos se confirman sin seña"} />
+        {!c.emailProfesional && (
+          <Estado ok={false} titulo="Email de la profesional" detalle="Completalo abajo para recibir el aviso de cada turno nuevo" />
+        )}
       </div>
 
       <section className="card grid gap-4 p-5 sm:grid-cols-2">

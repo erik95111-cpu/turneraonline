@@ -1,12 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { getConfig } from "@/lib/config";
-import { linkInstagram, linkWhatsapp } from "@/lib/formato";
+import { prisma } from "@/lib/db";
+import { linkInstagram, linkWhatsapp, resumenHorarios } from "@/lib/formato";
 
 export const dynamic = "force-dynamic";
 
 export default async function SitioLayout({ children }: { children: React.ReactNode }) {
-  const cfg = await getConfig();
+  const [cfg, franjas] = await Promise.all([getConfig(), prisma.horarioAtencion.findMany()]);
+  const horarios = resumenHorarios(franjas);
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-40 border-b border-linea/60 bg-ink/80 backdrop-blur-md">
@@ -49,8 +51,9 @@ export default async function SitioLayout({ children }: { children: React.ReactN
             )}
           </div>
           <div className="text-sm text-piedra md:text-right">
-            <p className="eyebrow mb-3">Turnos online</p>
-            <p className="mb-5">Reservá en minutos y recibí la confirmación por mail.</p>
+            <p className="eyebrow mb-3">Días de atención</p>
+            {horarios.map((h) => <p key={h}>{h}</p>)}
+            <p className="mt-3 mb-5">Reservá online y recibí la confirmación por mail.</p>
             <Link href="/reservar" className="btn-linea">Reservar turno</Link>
           </div>
         </div>

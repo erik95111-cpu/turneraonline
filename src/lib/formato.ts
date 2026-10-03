@@ -26,3 +26,20 @@ export function linkInstagram(usuario: string): string {
   if (usuario.startsWith("http")) return usuario;
   return `https://instagram.com/${usuario.replace(/^@/, "")}`;
 }
+
+const DIAS_PLURAL = ["Domingos", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábados"];
+
+/** ["Sábados · 09:00 a 13:00 y 14:00 a 18:00", …] agrupando días con el mismo horario */
+export function resumenHorarios(franjas: { diaSemana: number; horaInicio: string; horaFin: string }[]): string[] {
+  const porDia = new Map<number, string>();
+  for (const d of [1, 2, 3, 4, 5, 6, 0]) {
+    const del = franjas
+      .filter((f) => f.diaSemana === d)
+      .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
+      .map((f) => `${f.horaInicio} a ${f.horaFin}`);
+    if (del.length) porDia.set(d, del.join(" y "));
+  }
+  const grupos = new Map<string, number[]>();
+  for (const [d, h] of porDia) grupos.set(h, [...(grupos.get(h) ?? []), d]);
+  return [...grupos].map(([h, dias]) => `${dias.map((d) => DIAS_PLURAL[d]).join(", ")} · ${h}`);
+}

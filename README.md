@@ -86,7 +86,7 @@ Sin `SMTP_*` configurado, los mails no se envían y se muestran en la consola.
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | Servidor de desarrollo |
-| `npm test` | Tests (cálculo de horarios, zona horaria, seña) |
+| `npm test` | Tests unitarios. Con `TEST_DATABASE_URL` (una base **vacía y descartable**) corre también los de reservas, pagos y cancelaciones |
 | `npm run lint` | Chequeo de tipos |
 | `npm run build` | Build de producción |
 | `npm run db:seed` | Datos iniciales |

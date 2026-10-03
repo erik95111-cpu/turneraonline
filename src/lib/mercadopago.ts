@@ -1,5 +1,7 @@
 import { MercadoPagoConfig, Payment, Preference } from "mercadopago";
+import { formatInTimeZone } from "date-fns-tz";
 import { siteUrl } from "./config";
+import { TZ } from "./tiempo";
 
 export function mpHabilitado(): boolean {
   return Boolean(process.env.MP_ACCESS_TOKEN);
@@ -33,7 +35,7 @@ export async function crearPreferenciaSena(args: {
       back_urls: { success: vuelta, pending: vuelta, failure: vuelta },
       ...(publica ? { auto_return: "approved", notification_url: `${base}/api/mercadopago/webhook` } : {}),
       expires: true,
-      expiration_date_to: args.expira.toISOString(),
+      expiration_date_to: formatInTimeZone(args.expira, TZ, "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"),
       statement_descriptor: "HEALTHY SKIN",
     },
   });

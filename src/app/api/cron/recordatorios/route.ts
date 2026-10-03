@@ -3,9 +3,10 @@ import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { enviarMail } from "@/lib/email";
 import { mailRecordatorio } from "@/lib/plantillas-email";
+import { aFechaUTC, fechaISO, sumarDias } from "@/lib/tiempo";
 
 /**
- * Envía recordatorio por mail de los turnos de las próximas ~36 hs.
+ * Envía recordatorio por mail de los turnos de MAÑANA (hora Argentina).
  * Vercel Cron lo llama una vez por día (ver vercel.json).
  */
 export async function GET(req: Request) {
@@ -14,12 +15,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const ahora = Date.now();
+  const manana = sumarDias(fechaISO(new Date()), 1);
   const turnos = await prisma.turno.findMany({
     where: {
       estado: "CONFIRMADO",
       recordatorioEnviado: false,
-      inicio: { gt: new Date(ahora + 2 * 3_600_000), lt: new Date(ahora + 36 * 3_600_000) },
+      inicio: { gte: aFechaUTC(manana, "00:00"), lt: aFechaUTC(sumarDias(manana, 1), "00:00") },
     },
     include: { clienta: true, servicio: true },
   });

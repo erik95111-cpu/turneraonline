@@ -51,13 +51,14 @@ async function main() {
   }
 
   if ((await prisma.horarioAtencion.count()) === 0) {
-    const franjas = [1, 2, 3, 4, 5].flatMap((d) => [
-      { diaSemana: d, horaInicio: "09:00", horaFin: "13:00" },
-      { diaSemana: d, horaInicio: "15:00", horaFin: "19:00" },
-    ]);
-    franjas.push({ diaSemana: 6, horaInicio: "09:00", horaFin: "13:00" });
-    await prisma.horarioAtencion.createMany({ data: franjas });
-    console.log("✓ Horarios: lunes a viernes 9-13 y 15-19, sábados 9-13");
+    // La profesional atiende sólo los sábados (se cambia desde /admin/horarios)
+    await prisma.horarioAtencion.createMany({
+      data: [
+        { diaSemana: 6, horaInicio: "09:00", horaFin: "13:00" },
+        { diaSemana: 6, horaInicio: "14:00", horaFin: "18:00" },
+      ],
+    });
+    console.log("✓ Horarios: sábados 9-13 y 14-18");
   }
 }
 
