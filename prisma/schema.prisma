@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Tratamiento que ofrece la profesional (limpieza facial, peeling, etc.)
+model Servicio {
+  id          String   @id @default(cuid())
+  nombre      String
+  descripcion String   @default("")
+  categoria   String   @default("Faciales")
+  duracionMin Int
+  /// Precio en pesos argentinos (sin centavos)
+  precio      Int
+  activo      Boolean  @default(true)
+  orden       Int      @default(0)
+  turnos      Turno[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Franja de atención semanal. Puede haber varias por día (ej: mañana y tarde).
+model HorarioAtencion {
+  id         String @id @default(cuid())
+  /// 0 = domingo … 6 = sábado
+  diaSemana  Int
+  /// "HH:mm" en hora de Argentina
+  horaInicio String
+  horaFin    String
+}
+
+/// Período en el que no se toman turnos (vacaciones, feriados, trámites).
+model Bloqueo {
+  id     String   @id @default(cuid())
+  desde  DateTime
+  hasta  DateTime
+  motivo String   @default("")
+}
+
+model Clienta {
+  id        String   @id @default(cuid())
+  nombre    String
+  email     String   @unique
+  telefono  String
+  /// Ficha: datos que la profesional completa desde el panel
+  tipoPiel  String   @default("")
+  alergias  String   @default("")
+  notas     String   @default("")
+  turnos    Turno[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum EstadoTurno {
+  PENDIENTE_PAGO
+  CONFIRMADO
+  CANCELADO
+  COMPLETADO
+  AUSENTE
+}
+
+model Turno {
+  id                  String      @id @default(cuid())
+  clientaId           String
+  clienta             Clienta     @relation(fields: [clientaId], references: [id])
+  servicioId          String
+  servicio            Servicio    @relation(fields: [servicioId], references: [id])
+  inicio              DateTime
+  fin                 DateTime
+  estado              EstadoTurno @default(PENDIENTE_PAGO)
+  /// Precio y seña congelados al momento de reservar
+  precio              Int
+  montoSena           Int         @default(0)
+  /// Si queda PENDIENTE_PAGO después de esta hora, el horario se libera
+  expiraEn            DateTime?
+  mpPreferenceId      String?
+  mpPaymentId         String?
+  pagoEstado          String?
+  notasClienta        String      @default("")
+  /// Token secreto para que la clienta vea/cancele su turno desde el mail
+  token               String      @unique @default(cuid())
+  recordatorioEnviado Boolean     @default(false)
+  creadoPorAdmin      Boolean     @default(false)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  @@index([inicio])
+  @@index([estado])
+}
+
+enum TipoSena {
+  NINGUNA
+  PORCENTAJE
+  FIJO
+}
+
+/// Fila única (id = 1) con la configuración del negocio
+model Configuracion {
+  id                   Int      @id @default(1)
+  nombreNegocio        String   @default("MC Healthy Skin")
+  nombreProfesional    String   @default("")
+  emailProfesional     String   @default("")
+  whatsapp             String   @default("")
+  instagram            String   @default("")
+  direccion            String   @default("")
+  sobreMi              String   @default("")
+  /// URL de YouTube, Vimeo o un .mp4
+  videoUrl             String   @default("")
+  senaTipo             TipoSena @default(PORCENTAJE)
+  /// Porcentaje (0-100) o monto fijo en pesos según senaTipo
+  senaValor            Int      @default(30)
+  /// Cada cuántos minutos se ofrecen horarios
+  intervaloMin         Int      @default(30)
+  anticipacionMinHoras Int      @default(3)
+  diasMaxReserva       Int      @default(45)
+  minutosParaPagar     Int      @default(20)
+  horasParaCancelar    Int      @default(24)
+  politicaCancelacion  String   @default("Podés cancelar sin costo hasta 24 hs antes del turno. Pasado ese plazo la seña no se reintegra.")
+  updatedAt            DateTime @updatedAt
+}
