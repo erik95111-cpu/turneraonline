@@ -4,8 +4,7 @@ Sistema de turnos online para **MC Healthy Skin – Dermatocosmiatría**.
 Las clientas eligen tratamiento, día y horario, pagan la seña con **Mercado Pago** y
 reciben la confirmación por **mail** (la profesional también recibe un aviso).
 
-> El sistema anterior (CakePHP 2, 2013-2014) quedó guardado en la rama `legacy-cakephp`
-> y en el tag `legacy-cakephp-2014`.
+> El sistema anterior (CakePHP 2, 2013-2014) quedó guardado en la rama `legacy-cakephp`.
 
 ## Funcionalidades
 
