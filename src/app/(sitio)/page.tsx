@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { formatDuracion, formatPrecio } from "@/lib/formato";
 import { VideoPresentacion } from "@/components/VideoPresentacion";
+import { calcularSena } from "@/lib/sena";
+import { mpHabilitado } from "@/lib/mercadopago";
 
 export default async function Home() {
   const [cfg, servicios] = await Promise.all([
@@ -12,6 +14,7 @@ export default async function Home() {
   ]);
 
   const categorias = [...new Set(servicios.map((s) => s.categoria))];
+  const conSena = mpHabilitado() && cfg.senaTipo !== "NINGUNA";
 
   return (
     <>
@@ -96,6 +99,9 @@ export default async function Home() {
                     <div>
                       <p className="text-xs tracking-widest text-piedra uppercase">{formatDuracion(s.duracionMin)}</p>
                       <p className="mt-1 font-serif text-2xl text-gold-light">{formatPrecio(s.precio)}</p>
+                      {conSena && (
+                        <p className="text-xs text-piedra">Seña {formatPrecio(calcularSena(s.precio, cfg.senaTipo, cfg.senaValor))}</p>
+                      )}
                     </div>
                     <Link href={`/reservar?servicio=${s.id}`} className="btn-linea !px-4 !py-2 !text-[0.65rem]">
                       Reservar
@@ -120,8 +126,8 @@ export default async function Home() {
               ["Elegí tu tratamiento", "Mirá duración y precio de cada servicio."],
               ["Elegí día y horario", "Ves sólo los horarios que están libres."],
               [
-                cfg.senaTipo !== "NINGUNA" ? "Confirmá con tu seña" : "Confirmá tus datos",
-                cfg.senaTipo !== "NINGUNA"
+                conSena ? "Confirmá con tu seña" : "Confirmá tus datos",
+                conSena
                   ? "Abonás la seña con Mercado Pago y te llega la confirmación por mail."
                   : "Te llega la confirmación por mail al instante.",
               ],

@@ -1,6 +1,6 @@
 /**
- * Carga datos iniciales: configuración, horarios y tratamientos de ejemplo.
- * Los precios son ORIENTATIVOS: editalos desde el panel (/admin/servicios).
+ * Carga datos iniciales: configuración, horarios y tratamientos.
+ * Precios tomados de la página actual (octubre 2026). Se editan desde /admin/servicios.
  * Sólo carga tratamientos/horarios si la tabla está vacía.
  */
 import { PrismaClient } from "@prisma/client";
@@ -8,32 +8,46 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const servicios = [
-  { categoria: "Faciales", nombre: "Limpieza facial profunda", duracionMin: 60, precio: 30000,
-    descripcion: "Higiene completa con extracción, exfoliación, mascarilla según tu tipo de piel e hidratación final." },
-  { categoria: "Faciales", nombre: "Limpieza facial express", duracionMin: 40, precio: 22000,
-    descripcion: "Higiene, exfoliación suave e hidratación. Ideal para mantenimiento entre sesiones." },
-  { categoria: "Faciales", nombre: "Hidratación profunda", duracionMin: 50, precio: 28000,
-    descripcion: "Protocolo de hidratación intensiva con activos humectantes para pieles deshidratadas o apagadas." },
-  { categoria: "Faciales", nombre: "Tratamiento para acné", duracionMin: 60, precio: 32000,
-    descripcion: "Limpieza, extracción y activos seborreguladores para controlar brotes y marcas." },
-  { categoria: "Renovación", nombre: "Peeling químico", duracionMin: 45, precio: 35000,
-    descripcion: "Renovación celular para manchas, textura irregular y marcas de acné. Requiere evaluación previa." },
-  { categoria: "Renovación", nombre: "Dermaplaning", duracionMin: 45, precio: 30000,
-    descripcion: "Exfoliación mecánica que elimina células muertas y vello fino. Piel suave y luminosa al instante." },
-  { categoria: "Renovación", nombre: "Microneedling (Dermapen)", duracionMin: 60, precio: 45000,
-    descripcion: "Estimula colágeno para mejorar cicatrices, poros y firmeza." },
-  { categoria: "Anti-age", nombre: "Radiofrecuencia facial", duracionMin: 45, precio: 30000,
-    descripcion: "Tensado y firmeza a través de calor controlado. Recomendado en series de sesiones." },
-  { categoria: "Evaluación", nombre: "Consulta y diagnóstico de piel", duracionMin: 30, precio: 15000,
-    descripcion: "Evaluamos tu piel y armamos un plan de tratamiento y rutina en casa a tu medida." },
+  // ─── Faciales ───
+  { categoria: "Faciales", nombre: "Higiene básica y renovación cutánea", duracionMin: 60, precio: 45000,
+    descripcion: "Limpieza, exfoliación e hidratación para renovar la piel y devolverle luminosidad." },
+  { categoria: "Faciales", nombre: "Higiene profunda (con extracciones controladas)", duracionMin: 60, precio: 47000,
+    descripcion: "Limpieza en profundidad con extracciones controladas para destapar poros y purificar la piel." },
+  { categoria: "Faciales", nombre: "Hidratación intensiva", duracionMin: 60, precio: 45000,
+    descripcion: "Protocolo de hidratación profunda para pieles secas, deshidratadas o apagadas." },
+  { categoria: "Faciales", nombre: "Tratamiento purificante para piel acneica", duracionMin: 60, precio: 50000,
+    descripcion: "Protocolo pensado para pieles con acné: limpia, purifica y ayuda a controlar los brotes." },
+  { categoria: "Faciales", nombre: "Protocolo calmante para rosácea y piel sensible", duracionMin: 60, precio: 55000,
+    descripcion: "Tratamiento suave que calma el enrojecimiento y fortalece las pieles sensibles." },
+  { categoria: "Faciales", nombre: "Protocolo con alta frecuencia", duracionMin: 60, precio: 45000,
+    descripcion: "Tratamiento con alta frecuencia, de acción purificante y descongestiva." },
+  // ─── Corporales ───
+  { categoria: "Corporales", nombre: "Modelación", duracionMin: 40, precio: 25000,
+    descripcion: "Tratamiento corporal para modelar la figura." },
+  { categoria: "Corporales", nombre: "Celulitis", duracionMin: 30, precio: 24000,
+    descripcion: "Tratamiento enfocado en mejorar el aspecto de la piel con celulitis." },
+  { categoria: "Corporales", nombre: "Ondas rusas", duracionMin: 40, precio: 24000,
+    descripcion: "Electroestimulación para trabajar y tonificar la musculatura." },
+  { categoria: "Corporales", nombre: "Tonificación muscular", duracionMin: 40, precio: 24000,
+    descripcion: "Sesión para tonificar y dar firmeza a la zona a tratar." },
+  { categoria: "Corporales", nombre: "Ganancia de fuerza", duracionMin: 40, precio: 25000,
+    descripcion: "Sesión orientada a fortalecer la musculatura." },
+  // ─── Capilares ───
+  { categoria: "Capilares", nombre: "Premium: bioestimulación capilar con microneedling", duracionMin: 60, precio: 70000,
+    descripcion: "Bioestimulación del cuero cabelludo con microneedling para fortalecer el cabello." },
 ];
 
 async function main() {
-  await prisma.configuracion.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
+  // Seña fija de $10.000, igual que en la página actual
+  await prisma.configuracion.upsert({
+    where: { id: 1 },
+    update: {},
+    create: { id: 1, senaTipo: "FIJO", senaValor: 10000 },
+  });
 
   if ((await prisma.servicio.count()) === 0) {
     await prisma.servicio.createMany({ data: servicios.map((s, i) => ({ ...s, orden: i })) });
-    console.log(`✓ ${servicios.length} tratamientos de ejemplo`);
+    console.log(`✓ ${servicios.length} tratamientos`);
   }
 
   if ((await prisma.horarioAtencion.count()) === 0) {
