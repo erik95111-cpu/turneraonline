@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Montserrat } from "next/font/google";
 import "./globals.css";
+import { siteUrl } from "@/lib/config";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -15,7 +16,7 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
+  metadataBase: new URL(siteUrl()),
   title: {
     default: "MC Healthy Skin · Dermatocosmiatría",
     template: "%s · MC Healthy Skin",

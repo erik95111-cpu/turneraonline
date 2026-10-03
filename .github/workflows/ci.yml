@@ -20,6 +20,7 @@ jobs:
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://hs:hs@localhost:5432/healthyskin
+      DATABASE_URL_UNPOOLED: postgresql://hs:hs@localhost:5432/healthyskin
       # Base descartable de CI: los tests de integración la vacían
       TEST_DATABASE_URL: postgresql://hs:hs@localhost:5432/healthyskin
       AUTH_SECRET: ci-secret-ci-secret-ci-secret-0123

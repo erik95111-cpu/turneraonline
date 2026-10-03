@@ -6,6 +6,9 @@ export const getConfig = cache(async () => {
   return prisma.configuracion.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
 });
 
+/** URL pública del sitio. En Vercel se toma sola del dominio de producción. */
 export function siteUrl(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const url = process.env.NEXT_PUBLIC_SITE_URL || (vercel ? `https://${vercel}` : "http://localhost:3000");
+  return url.replace(/\/$/, "");
 }

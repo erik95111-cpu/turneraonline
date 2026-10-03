@@ -33,33 +33,43 @@ Next.js 15 (App Router, TypeScript) · PostgreSQL + Prisma · Tailwind CSS 4 · 
 
 ## Puesta en marcha (gratis, sin dominio propio)
 
-### 1. Base de datos — Neon
-1. Crear una cuenta en <https://neon.tech> y un proyecto.
-2. Copiar la *connection string* (`postgresql://...`). Ésa es tu `DATABASE_URL`.
+Todo se hace desde el navegador; no hace falta instalar nada.
 
-### 2. Mails — Gmail
+### 1. Mails — contraseña de aplicación de Gmail
 1. En la cuenta de Gmail que va a enviar los mails, activar la **verificación en 2 pasos**.
-2. Ir a <https://myaccount.google.com/apppasswords> y crear una contraseña de aplicación.
-3. Usar `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_USER=<tu gmail>`, `SMTP_PASS=<la contraseña de 16 letras>`.
+2. Entrar a <https://myaccount.google.com/apppasswords>, crear una contraseña (nombre: "Turnos") y copiar las 16 letras.
 
-### 3. Mercado Pago
-1. Entrar a <https://www.mercadopago.com.ar/developers/panel/app> y crear una aplicación (“Pagos online” → Checkout Pro).
-2. En **Credenciales de producción** copiar el *Access Token* → `MP_ACCESS_TOKEN`.
-   Para probar sin plata real usá las credenciales de prueba.
-3. No hace falta configurar el webhook a mano: el sistema lo indica en cada pago.
+### 2. Mercado Pago — Access Token
+1. Con la cuenta de Mercado Pago de la profesional, entrar a <https://www.mercadopago.com.ar/developers/panel/app>.
+2. **Crear aplicación** → tipo *Pagos online* → *Checkout Pro*.
+3. En **Credenciales de prueba** copiar el *Access Token* (empieza con `TEST-` o `APP_USR-`). Más adelante se cambia por el de **producción**.
 
-> Si no cargás `MP_ACCESS_TOKEN`, los turnos se confirman directamente sin seña.
+### 3. Publicar — Vercel
+1. Entrar a <https://vercel.com> con la cuenta de GitHub → **Add New → Project** → importar este repositorio.
+2. Antes de tocar *Deploy*, en **Environment Variables** cargar:
 
-### 4. Publicar — Vercel
-1. Crear una cuenta en <https://vercel.com> con GitHub e importar este repositorio.
-2. En *Environment Variables* cargar todas las de [`.env.example`](.env.example).
-   `NEXT_PUBLIC_SITE_URL` es la URL que te da Vercel (ej: `https://healthy-skin.vercel.app`).
-3. Deploy. La base se crea sola (`prisma migrate deploy`).
-4. Cargar los datos iniciales una vez desde tu compu: `DATABASE_URL="..." npm run db:seed`.
-5. Entrar a `https://<tu-url>/admin` con `ADMIN_PASSWORD` y completar **Configuración**
-   (email de la profesional, WhatsApp, Instagram, dirección, video) y los **precios reales**.
+   | Variable | Valor |
+   |---|---|
+   | `ADMIN_PASSWORD` | La contraseña para entrar al panel |
+   | `AUTH_SECRET` | Una cadena larga al azar (mín. 32 caracteres) |
+   | `CRON_SECRET` | Otra cadena larga al azar |
+   | `SMTP_HOST` | `smtp.gmail.com` |
+   | `SMTP_PORT` | `465` |
+   | `SMTP_USER` | La cuenta de Gmail |
+   | `SMTP_PASS` | La contraseña de aplicación (16 letras) |
+   | `EMAIL_FROM` | `MC Healthy Skin <la-cuenta@gmail.com>` |
+   | `MP_ACCESS_TOKEN` | El Access Token de Mercado Pago |
 
-Más adelante se puede conectar un dominio propio (ej: `healthyskin.com.ar` en NIC Argentina) desde Vercel.
+3. Tocar **Deploy**. El primer intento puede fallar porque falta la base: es normal.
+4. En el proyecto: **Storage → Create Database → Neon** (plan gratis) → conectarla al proyecto.
+   Esto agrega solo `DATABASE_URL` y `DATABASE_URL_UNPOOLED`.
+5. **Deployments → ⋯ → Redeploy**. Al publicar se crean las tablas y se cargan los tratamientos y horarios.
+6. Entrar a `https://<tu-proyecto>.vercel.app/admin` con `ADMIN_PASSWORD` y completar **Configuración**
+   (email de la profesional, WhatsApp, Instagram, dirección, "Sobre mí", video).
+7. Hacer una reserva de prueba con una [tarjeta de prueba de Mercado Pago](https://www.mercadopago.com.ar/developers/es/docs/checkout-pro/integration-test/test-cards).
+   Si todo llega bien, reemplazar `MP_ACCESS_TOKEN` por el de **producción** y hacer *Redeploy*.
+
+Más adelante se puede conectar un dominio propio (ej: `healthyskin.com.ar` en NIC Argentina) desde Vercel → Settings → Domains.
 
 ### Recordatorios
 `vercel.json` programa `/api/cron/recordatorios` todos los días a las 10:00 (hora Argentina).
@@ -74,7 +84,7 @@ También podés subir un `.mp4` a la carpeta `public/` (ej: `public/presentacion
 ## Desarrollo local
 
 ```bash
-cp .env.example .env        # completar DATABASE_URL como mínimo
+cp .env.example .env        # completar DATABASE_URL y DATABASE_URL_UNPOOLED como mínimo
 npm install
 npx prisma migrate deploy   # crea las tablas
 npm run db:seed             # tratamientos y horarios de ejemplo

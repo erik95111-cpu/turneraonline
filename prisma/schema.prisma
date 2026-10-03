@@ -4,7 +4,9 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
+  /// Conexión directa (sin pooler) para las migraciones. La integración de Neon en Vercel la crea sola.
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 /// Tratamiento que ofrece la profesional (limpieza facial, peeling, etc.)
