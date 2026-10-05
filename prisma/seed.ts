@@ -4,6 +4,9 @@
  * Sólo carga tratamientos/horarios si la tabla está vacía.
  */
 import { PrismaClient } from "@prisma/client";
+import { completarVariablesDB } from "../src/lib/env-db";
+
+completarVariablesDB();
 
 const prisma = new PrismaClient();
 

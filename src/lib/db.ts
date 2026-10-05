@@ -1,4 +1,7 @@
 import { PrismaClient } from "@prisma/client";
+import { completarVariablesDB } from "./env-db";
+
+completarVariablesDB();
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
