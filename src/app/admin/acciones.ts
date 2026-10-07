@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { EstadoTurno, TipoSena } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { cerrarSesion, requireAdmin } from "@/lib/auth";
+import { USUARIO_MAESTRO, cerrarSesion, crearSesion, requireAdmin } from "@/lib/auth";
+import { hashPassword, verificarPassword } from "@/lib/passwords";
 import { ErrorReserva, cancelarTurno, crearReserva, reservaSchema } from "@/lib/turnos";
 import { aFechaUTC } from "@/lib/tiempo";
 import type { ResultadoReserva } from "@/app/actions/reservas";
@@ -174,4 +175,75 @@ export async function guardarConfiguracion(fd: FormData) {
   await prisma.configuracion.upsert({ where: { id: 1 }, update: data, create: { id: 1, ...data } });
   refrescar();
   redirect("/admin/configuracion?ok=1");
+}
+
+// ─── Usuarios del panel ────────────────────────────────────
+
+const usuarioSchema = z.object({
+  nombre: z.string().trim().min(2, "Ingresá el nombre").max(80),
+  email: z.string().trim().toLowerCase().email("Email inválido").max(120)
+    .refine((e) => e !== USUARIO_MAESTRO, "Ese usuario está reservado"),
+  password: z.string().min(8, "La contraseña tiene que tener al menos 8 caracteres").max(200),
+});
+
+function volverUsuarios(q: Record<string, string>): never {
+  redirect(`/admin/usuarios?${new URLSearchParams(q)}`);
+}
+
+export async function crearAdministrador(fd: FormData) {
+  await requireAdmin();
+  const r = usuarioSchema.safeParse({ nombre: txt(fd, "nombre"), email: txt(fd, "email"), password: String(fd.get("password") ?? "") });
+  if (!r.success) volverUsuarios({ error: r.error.issues[0]?.message ?? "Datos inválidos" });
+  const existe = await prisma.administrador.findUnique({ where: { email: r.data.email } });
+  if (existe) volverUsuarios({ error: "Ya existe un usuario con ese email" });
+  await prisma.administrador.create({
+    data: { nombre: r.data.nombre, email: r.data.email, passwordHash: await hashPassword(r.data.password) },
+  });
+  volverUsuarios({ ok: `Usuario creado: ${r.data.email}` });
+}
+
+export async function cambiarActivoAdministrador(fd: FormData) {
+  const yo = await requireAdmin();
+  const id = txt(fd, "id");
+  if (id === yo.id) volverUsuarios({ error: "No podés desactivar tu propio usuario" });
+  const admin = await prisma.administrador.findUnique({ where: { id } });
+  if (!admin) volverUsuarios({ error: "Usuario no encontrado" });
+  // Al desactivar subimos la versión para cerrar sus sesiones abiertas
+  await prisma.administrador.update({
+    where: { id },
+    data: { activo: !admin.activo, version: { increment: 1 } },
+  });
+  volverUsuarios({ ok: `${admin.nombre}: ${admin.activo ? "desactivado" : "activado"}` });
+}
+
+export async function resetearPasswordAdministrador(fd: FormData) {
+  const yo = await requireAdmin();
+  const id = txt(fd, "id");
+  const password = String(fd.get("password") ?? "");
+  if (password.length < 8) volverUsuarios({ error: "La contraseña tiene que tener al menos 8 caracteres" });
+  const admin = await prisma.administrador.update({
+    where: { id },
+    data: { passwordHash: await hashPassword(password), version: { increment: 1 } },
+  });
+  if (admin.id === yo.id) await crearSesion({ sub: admin.id, v: admin.version });
+  volverUsuarios({ ok: `Contraseña actualizada para ${admin.nombre}` });
+}
+
+export async function cambiarMiPassword(fd: FormData) {
+  const yo = await requireAdmin();
+  const volver = (q: Record<string, string>): never => redirect(`/admin/cuenta?${new URLSearchParams(q)}`);
+  if (yo.maestro) volver({ error: "La contraseña del usuario admin se cambia en Vercel (ADMIN_PASSWORD)" });
+  const actual = String(fd.get("actual") ?? "");
+  const nueva = String(fd.get("nueva") ?? "");
+  if (nueva.length < 8) volver({ error: "La contraseña nueva tiene que tener al menos 8 caracteres" });
+  if (nueva !== String(fd.get("repetir") ?? "")) volver({ error: "Las contraseñas nuevas no coinciden" });
+  const admin = await prisma.administrador.findUniqueOrThrow({ where: { id: yo.id } });
+  if (!(await verificarPassword(actual, admin.passwordHash))) volver({ error: "La contraseña actual no es correcta" });
+  const act = await prisma.administrador.update({
+    where: { id: yo.id },
+    data: { passwordHash: await hashPassword(nueva), version: { increment: 1 } },
+  });
+  // Cierra las otras sesiones y deja ésta abierta
+  await crearSesion({ sub: act.id, v: act.version });
+  volver({ ok: "Contraseña cambiada" });
 }

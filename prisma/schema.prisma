@@ -9,6 +9,20 @@ datasource db {
   directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
+/// Persona que puede entrar al panel (la profesional, una secretaria, etc.)
+model Administrador {
+  id            String    @id @default(cuid())
+  nombre        String
+  email         String    @unique
+  passwordHash  String
+  activo        Boolean   @default(true)
+  /// Sube cada vez que cambia la contraseña: cierra las sesiones abiertas en otros dispositivos
+  version       Int       @default(0)
+  ultimoIngreso DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
 /// Tratamiento que ofrece la profesional (limpieza facial, peeling, etc.)
 model Servicio {
   id          String   @id @default(cuid())

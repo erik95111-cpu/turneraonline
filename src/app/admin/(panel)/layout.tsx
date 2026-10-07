@@ -9,16 +9,18 @@ export const dynamic = "force-dynamic";
 
 const LINKS = [
   ["/admin", "Agenda"],
+  ["/admin/turnos", "Turnos"],
   ["/admin/turnos/nuevo", "Nuevo turno"],
   ["/admin/servicios", "Tratamientos"],
   ["/admin/horarios", "Horarios"],
   ["/admin/clientas", "Clientas"],
   ["/admin/estadisticas", "Estadísticas"],
   ["/admin/configuracion", "Configuración"],
+  ["/admin/usuarios", "Usuarios"],
 ];
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
-  await requireAdmin();
+  const sesion = await requireAdmin();
   return (
     <div className="admin">
       <header className="bg-ink text-cream">
@@ -35,6 +37,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm">
+            <Link href="/admin/cuenta" className="text-gold-light hover:underline" title="Mi cuenta">{sesion.nombre.split(" ")[0]}</Link>
             <Link href="/" target="_blank" className="text-piedra hover:text-gold-light">Ver web ↗</Link>
             <form action={salir}><button className="text-piedra hover:text-gold-light">Salir</button></form>
           </div>

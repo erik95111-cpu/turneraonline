@@ -17,6 +17,9 @@ reciben la confirmación por **mail** (la profesional también recibe un aviso).
 - Recordatorio automático por mail el día anterior.
 
 **Panel (`/admin`)**
+- Ingreso con **email y contraseña** por persona (la profesional, una secretaria…). Pantalla **Usuarios** para crear, desactivar o cambiar contraseñas, y **Mi cuenta** para cambiar la propia.
+- Acceso de emergencia: usuario `admin` + la contraseña `ADMIN_PASSWORD` de Vercel.
+- **Turnos**: lista de todos los turnos (próximos, pasados), con búsqueda y filtro por estado.
 - Agenda semanal: marcar turnos como realizados / no vino / cancelar, botón de WhatsApp.
 - Cargar turnos a mano (los que llegan por WhatsApp).
 - Tratamientos: alta, edición, precios, duración, ocultar.
