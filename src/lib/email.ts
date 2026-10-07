@@ -15,7 +15,8 @@ function getTransporter(): Transporter | null {
     host: SMTP_HOST,
     port,
     secure: port === 465,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
+    // Gmail muestra la contraseña de aplicación en grupos de 4: quitamos los espacios
+    auth: { user: SMTP_USER.trim(), pass: SMTP_PASS.replace(/\s+/g, "") },
   });
   return transporter;
 }
