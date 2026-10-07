@@ -26,8 +26,9 @@ export async function verificarCredenciales(
   if (!u || !password) return null;
 
   if (u === USUARIO_MAESTRO) {
-    const real = process.env.ADMIN_PASSWORD;
-    return real && igualesSeguro(password, real) ? { sub: USUARIO_MAESTRO, v: 0 } : null;
+    // trim: en el celular es fácil que quede un espacio de más al cargarla en Vercel
+    const real = process.env.ADMIN_PASSWORD?.trim();
+    return real && igualesSeguro(password.trim(), real) ? { sub: USUARIO_MAESTRO, v: 0 } : null;
   }
 
   const admin = await prisma.administrador.findUnique({ where: { email: u } });
