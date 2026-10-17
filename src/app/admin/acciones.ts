@@ -7,7 +7,8 @@ import type { EstadoTurno, TipoSena } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { USUARIO_MAESTRO, cerrarSesion, crearSesion, requireAdmin } from "@/lib/auth";
 import { hashPassword, verificarPassword } from "@/lib/passwords";
-import { ErrorReserva, cancelarTurno, crearReserva, reservaSchema } from "@/lib/turnos";
+import { ErrorReserva, cancelarTurno, confirmarSena, crearReserva, reservaSchema } from "@/lib/turnos";
+import { probarEnvio } from "@/lib/email";
 import { aFechaUTC } from "@/lib/tiempo";
 import type { ResultadoReserva } from "@/app/actions/reservas";
 
@@ -28,12 +29,13 @@ export async function salir() {
 export async function cambiarEstadoTurno(fd: FormData) {
   await requireAdmin();
   const id = txt(fd, "id");
-  const estado = txt(fd, "estado") as EstadoTurno;
+  const estado = txt(fd, "estado") as EstadoTurno | "SENA_RECIBIDA";
   const desde = txt(fd, "desde");
   let aviso = "";
-  if (estado === "CANCELADO") {
+  if (estado === "CANCELADO" || estado === "SENA_RECIBIDA") {
     try {
-      await cancelarTurno(id, "admin");
+      if (estado === "CANCELADO") await cancelarTurno(id, "admin");
+      else await confirmarSena(id);
     } catch (err) {
       if (!(err instanceof ErrorReserva)) throw err;
       aviso = err.message;
@@ -168,7 +170,11 @@ export async function guardarConfiguracion(fd: FormData) {
     intervaloMin: Math.max(5, num(fd, "intervaloMin")),
     anticipacionMinHoras: num(fd, "anticipacionMinHoras"),
     diasMaxReserva: Math.max(1, num(fd, "diasMaxReserva")),
-    minutosParaPagar: Math.max(10, num(fd, "minutosParaPagar")),
+    cbu: txt(fd, "cbu").replace(/\s+/g, ""),
+    alias: txt(fd, "alias"),
+    titularCuenta: txt(fd, "titularCuenta"),
+    banco: txt(fd, "banco"),
+    horasParaSena: Math.min(168, Math.max(1, num(fd, "horasParaSena"))),
     horasParaCancelar: num(fd, "horasParaCancelar"),
     politicaCancelacion: txt(fd, "politicaCancelacion"),
   };
@@ -246,4 +252,13 @@ export async function cambiarMiPassword(fd: FormData) {
   // Cierra las otras sesiones y deja ésta abierta
   await crearSesion({ sub: act.id, v: act.version });
   volver({ ok: "Contraseña cambiada" });
+}
+
+export async function enviarMailPrueba(fd: FormData) {
+  await requireAdmin();
+  const para = txt(fd, "para");
+  const r = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(para)
+    ? await probarEnvio(para)
+    : { ok: false, mensaje: "Escribí un email válido para la prueba" };
+  redirect(`/admin/configuracion?${new URLSearchParams({ [r.ok ? "mailok" : "mailerror"]: r.mensaje })}#mails`);
 }

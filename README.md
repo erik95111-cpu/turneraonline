@@ -1,7 +1,7 @@
 # MC Healthy Skin · Turnos online
 
 Sistema de turnos online para **MC Healthy Skin – Dermatocosmiatría**.
-Las clientas eligen tratamiento, día y horario, pagan la seña con **Mercado Pago** y
+Las clientas eligen tratamiento, día y horario, transfieren la seña (alias/CBU) y mandan el comprobante por **WhatsApp**, y
 reciben la confirmación por **mail** (la profesional también recibe un aviso).
 
 > El sistema anterior (CakePHP 2, 2013-2014) quedó guardado en la rama `legacy-cakephp`.
@@ -11,7 +11,7 @@ reciben la confirmación por **mail** (la profesional también recibe un aviso).
 **Web pública**
 - Página de inicio con el logo, tratamientos (por categoría, con duración y precio), “cómo funciona”, “sobre mí” y **video de presentación** al final.
 - Reserva en 3 pasos: tratamiento → día y horario (sólo muestra horarios libres) → datos.
-- Seña con Mercado Pago (porcentaje o monto fijo, configurable). El horario queda reservado unos minutos mientras se paga.
+- Seña por transferencia (monto fijo o porcentaje): la clienta ve alias/CBU con botón para copiar y un botón para mandar el comprobante por WhatsApp. El horario queda apartado (24 h por defecto) hasta que la profesional marca **“Seña recibida”** en el panel.
 - Mail de confirmación a la clienta (con archivo para agregar al calendario) y aviso a la profesional.
 - Link en el mail para ver o **cancelar** el turno (hasta X horas antes).
 - Recordatorio automático por mail el día anterior.
@@ -30,7 +30,7 @@ reciben la confirmación por **mail** (la profesional también recibe un aviso).
 
 ## Tecnología
 
-Next.js 15 (App Router, TypeScript) · PostgreSQL + Prisma · Tailwind CSS 4 · Nodemailer · SDK de Mercado Pago.
+Next.js 15 (App Router, TypeScript) · PostgreSQL + Prisma · Tailwind CSS 4 · Nodemailer.
 
 ---
 
@@ -42,12 +42,7 @@ Todo se hace desde el navegador; no hace falta instalar nada.
 1. En la cuenta de Gmail que va a enviar los mails, activar la **verificación en 2 pasos**.
 2. Entrar a <https://myaccount.google.com/apppasswords>, crear una contraseña (nombre: "Turnos") y copiar las 16 letras.
 
-### 2. Mercado Pago — Access Token
-1. Con la cuenta de Mercado Pago de la profesional, entrar a <https://www.mercadopago.com.ar/developers/panel/app>.
-2. **Crear aplicación** → tipo *Pagos online* → *Checkout Pro*.
-3. En **Credenciales de prueba** copiar el *Access Token* (empieza con `TEST-` o `APP_USR-`). Más adelante se cambia por el de **producción**.
-
-### 3. Publicar — Vercel
+### 2. Publicar — Vercel
 1. Entrar a <https://vercel.com> con la cuenta de GitHub → **Add New → Project** → importar este repositorio.
 2. Antes de tocar *Deploy*, en **Environment Variables** cargar:
 
@@ -61,16 +56,14 @@ Todo se hace desde el navegador; no hace falta instalar nada.
    | `SMTP_USER` | La cuenta de Gmail |
    | `SMTP_PASS` | La contraseña de aplicación (16 letras) |
    | `EMAIL_FROM` | `MC Healthy Skin <la-cuenta@gmail.com>` |
-   | `MP_ACCESS_TOKEN` | El Access Token de Mercado Pago |
 
 3. Tocar **Deploy**. El primer intento puede fallar porque falta la base: es normal.
 4. En el proyecto: **Storage → Create Database → Neon** (plan gratis) → conectarla al proyecto.
    Esto agrega solo `DATABASE_URL` y `DATABASE_URL_UNPOOLED`.
 5. **Deployments → ⋯ → Redeploy**. Al publicar se crean las tablas y se cargan los tratamientos y horarios.
 6. Entrar a `https://<tu-proyecto>.vercel.app/admin` con `ADMIN_PASSWORD` y completar **Configuración**
-   (email de la profesional, WhatsApp, Instagram, dirección, "Sobre mí", video).
-7. Hacer una reserva de prueba con una [tarjeta de prueba de Mercado Pago](https://www.mercadopago.com.ar/developers/es/docs/checkout-pro/integration-test/test-cards).
-   Si todo llega bien, reemplazar `MP_ACCESS_TOKEN` por el de **producción** y hacer *Redeploy*.
+   (email de la profesional, WhatsApp, alias/CBU para la seña, Instagram, dirección, "Sobre mí", video).
+7. En **Configuración → Probar el envío de mails** mandar un mail de prueba, y hacer una reserva de prueba.
 
 Más adelante se puede conectar un dominio propio (ej: `healthyskin.com.ar` en NIC Argentina) desde Vercel → Settings → Domains.
 
@@ -110,7 +103,7 @@ Sin `SMTP_*` configurado, los mails no se envían y se muestran en la consola.
 prisma/schema.prisma        Modelo de datos (Servicio, Turno, Clienta, Horarios, Bloqueos, Configuración)
 src/app/(sitio)/            Web pública: inicio, /reservar, /reserva/[id]
 src/app/admin/              Panel de administración
-src/app/api/                Disponibilidad, webhook de Mercado Pago, cron de recordatorios
+src/app/api/                Disponibilidad y cron de recordatorios
 src/lib/turnos.ts           Lógica de reservas, pagos y cancelaciones
 src/lib/slots.ts            Cálculo de horarios libres
 src/lib/plantillas-email.ts Mails

@@ -13,7 +13,7 @@ export async function reservarTurno(input: unknown, honeypot?: string): Promise<
 
   try {
     const r = await crearReserva(parsed.data);
-    return { ok: true, url: r.urlPago ?? `/reserva/${r.turnoId}?t=${r.token}` };
+    return { ok: true, url: `/reserva/${r.turnoId}?t=${r.token}` };
   } catch (err) {
     if (err instanceof ErrorReserva) return { ok: false, error: err.message };
     console.error("[reserva]", err);

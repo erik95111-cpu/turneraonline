@@ -4,21 +4,6 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mp = vi.hoisted(() => ({
-  habilitado: false,
-  pagos: new Map<string, { id: string; estado: string; turnoId: string; monto: number }>(),
-}));
-
-vi.mock("./mercadopago", () => ({
-  mpHabilitado: () => mp.habilitado,
-  crearPreferenciaSena: vi.fn(async () => ({ id: "pref-1", url: "https://mp.test/pagar" })),
-  obtenerPago: vi.fn(async (id: string) => {
-    const p = mp.pagos.get(id);
-    if (!p) throw new Error("pago inexistente");
-    return p;
-  }),
-}));
-
 const mails = vi.hoisted(() => [] as { to: string; subject: string }[]);
 vi.mock("./email", () => ({
   enviarMail: vi.fn(async (m: { to: string; subject: string }) => {
@@ -79,8 +64,7 @@ d("circuito de reservas", async () => {
     await prisma.turno.deleteMany();
     await prisma.bloqueo.deleteMany();
     mails.length = 0;
-    mp.habilitado = false;
-    mp.pagos.clear();
+    await prisma.configuracion.update({ where: { id: 1 }, data: { alias: "", cbu: "", horasParaSena: 24 } });
   });
 
   afterAll(async () => {
@@ -103,9 +87,9 @@ d("circuito de reservas", async () => {
     expect(await t.horariosDisponibles("no-existe", sabado)).toEqual([]);
   });
 
-  it("sin Mercado Pago confirma el turno y manda mail a la clienta y a la profesional", async () => {
+  it("sin alias/CBU cargado confirma el turno y manda mail a la clienta y a la profesional", async () => {
     const r = await t.crearReserva(datos());
-    expect(r.urlPago).toBeUndefined();
+    expect(r.pendienteSena).toBe(false);
     const turno = await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } });
     expect(turno.estado).toBe("CONFIRMADO");
     expect(turno.montoSena).toBe(0);
@@ -162,119 +146,94 @@ d("circuito de reservas", async () => {
     expect(t.reservaSchema.safeParse({ ...datos(), hora: "10" }).success).toBe(false);
   });
 
-  describe("con Mercado Pago", () => {
-    beforeEach(() => {
-      mp.habilitado = true;
+  describe("con seña por transferencia", () => {
+    beforeEach(async () => {
+      await prisma.configuracion.update({ where: { id: 1 }, data: { alias: "mc.healthy.skin", cbu: "0000003100000000000001" } });
     });
 
-    it("deja el turno pendiente con seña de $10.000 y devuelve el link de pago", async () => {
+    it("deja el turno apartado esperando la seña y avisa a las dos", async () => {
       const r = await t.crearReserva(datos());
-      expect(r.urlPago).toBe("https://mp.test/pagar");
+      expect(r.pendienteSena).toBe(true);
       const turno = await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } });
       expect(turno.estado).toBe("PENDIENTE_PAGO");
       expect(turno.montoSena).toBe(10000);
-      expect(turno.expiraEn!.getTime()).toBeGreaterThan(Date.now());
-      expect(mails).toHaveLength(0); // todavía no pagó
-      // El horario queda reservado mientras paga
+      const horas = (turno.expiraEn!.getTime() - Date.now()) / 3_600_000;
+      expect(horas).toBeGreaterThan(23.9);
+      expect(horas).toBeLessThanOrEqual(24);
+      expect(mails.find((m) => m.to === "lucia@example.com")?.subject).toMatch(/pendiente de seña/);
+      expect(mails.find((m) => m.to === "pro@example.com")?.subject).toMatch(/esperando seña/);
+      // El horario queda apartado mientras tanto
       expect(await t.horariosDisponibles(facial, sabado)).not.toContain("10:00");
     });
 
-    it("al aprobarse el pago confirma el turno y manda los mails una sola vez", async () => {
+    it("el plazo para la seña nunca pasa del horario del turno", async () => {
+      await prisma.configuracion.update({ where: { id: 1 }, data: { horasParaSena: 168 } });
       const r = await t.crearReserva(datos());
-      mp.pagos.set("111", { id: "111", estado: "approved", turnoId: r.turnoId, monto: 10000 });
-      await t.procesarPago("111");
-      await t.procesarPago("111"); // el webhook puede llegar repetido
+      const turno = await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } });
+      expect(turno.expiraEn!.getTime()).toBe(turno.inicio.getTime());
+    });
+
+    it("al marcar 'Seña recibida' se confirma y le llega el mail a la clienta", async () => {
+      const r = await t.crearReserva(datos());
+      mails.length = 0;
+      await t.confirmarSena(r.turnoId);
       const turno = await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } });
       expect(turno.estado).toBe("CONFIRMADO");
-      expect(turno.mpPaymentId).toBe("111");
-      expect(mails).toHaveLength(2);
+      expect(turno.pagoEstado).toBe("transferencia");
+      expect(turno.expiraEn).toBeNull();
+      expect(mails).toEqual([expect.objectContaining({ to: "lucia@example.com", subject: expect.stringMatching(/Turno confirmado/) })]);
+      await expect(t.confirmarSena(r.turnoId)).rejects.toThrow(t.ErrorReserva);
     });
 
-    it("un pago rechazado no confirma", async () => {
-      const r = await t.crearReserva(datos());
-      mp.pagos.set("222", { id: "222", estado: "rejected", turnoId: r.turnoId, monto: 10000 });
-      await t.procesarPago("222");
-      expect((await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } })).estado).toBe("PENDIENTE_PAGO");
-    });
-
-    it("un pago por menos de la seña no confirma, queda registrado y avisa una sola vez", async () => {
-      const r = await t.crearReserva(datos());
-      mp.pagos.set("333", { id: "333", estado: "approved", turnoId: r.turnoId, monto: 1 });
-      await t.procesarPago("333");
-      await t.procesarPago("333");
-      const turno = await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } });
-      expect(turno.estado).toBe("PENDIENTE_PAGO");
-      expect(turno.mpPaymentId).toBe("333");
-      expect(turno.pagoEstado).toBe("approved_monto_insuficiente");
-      expect(mails.map((m) => m.to)).toEqual(["pro@example.com"]);
-    });
-
-    it("pago aprobado de un turno cancelado mientras pagaba: queda registrado y avisa", async () => {
-      const r = await t.crearReserva(datos());
-      await t.cancelarTurno(r.turnoId, "admin");
-      mp.pagos.set("666", { id: "666", estado: "approved", turnoId: r.turnoId, monto: 10000 });
-      await t.procesarPago("666");
-      await t.procesarPago("666");
-      const turno = await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } });
-      expect(turno.estado).toBe("CANCELADO");
-      expect(turno.mpPaymentId).toBe("666");
-      expect(turno.pagoEstado).toBe("approved_a_revisar");
-      expect(mails.map((m) => m.to)).toEqual(["pro@example.com"]);
-    });
-
-    it("dos pagos tardíos simultáneos para el mismo horario: sólo uno se confirma", async () => {
-      const a = await t.crearReserva(datos({ email: "a@example.com" }));
-      await prisma.turno.update({ where: { id: a.turnoId }, data: { expiraEn: new Date(Date.now() - 1000) } });
-      const b = await t.crearReserva(datos({ email: "b@example.com" }));
-      await prisma.turno.update({ where: { id: b.turnoId }, data: { expiraEn: new Date(Date.now() - 1000) } });
-      mp.pagos.set("777", { id: "777", estado: "approved", turnoId: a.turnoId, monto: 10000 });
-      mp.pagos.set("888", { id: "888", estado: "approved", turnoId: b.turnoId, monto: 10000 });
-      await Promise.all([t.procesarPago("777"), t.procesarPago("888")]);
-      const estados = (await prisma.turno.findMany({ where: { id: { in: [a.turnoId, b.turnoId] } } })).map((x) => x.estado).sort();
-      expect(estados).toEqual(["CANCELADO", "CONFIRMADO"]);
-    });
-
-    it("si no paga a tiempo el horario se libera", async () => {
+    it("si no manda la seña a tiempo, el horario se libera", async () => {
       const r = await t.crearReserva(datos());
       await prisma.turno.update({ where: { id: r.turnoId }, data: { expiraEn: new Date(Date.now() - 1000) } });
       expect(await t.horariosDisponibles(facial, sabado)).toContain("10:00");
     });
 
-    it("pago tardío con el horario ya tomado: cancela y avisa a la profesional", async () => {
+    it("seña tardía con el horario libre: se puede confirmar igual", async () => {
       const r = await t.crearReserva(datos());
       await prisma.turno.update({ where: { id: r.turnoId }, data: { expiraEn: new Date(Date.now() - 1000) } });
-      mp.habilitado = false;
-      await t.crearReserva(datos({ email: "otra@example.com" })); // otra persona toma el horario
-      mails.length = 0;
-      mp.habilitado = true;
-      mp.pagos.set("444", { id: "444", estado: "approved", turnoId: r.turnoId, monto: 10000 });
-      await t.procesarPago("444");
-      const turno = await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } });
-      expect(turno.estado).toBe("CANCELADO");
-      expect(turno.pagoEstado).toBe("approved_sin_lugar");
-      expect(mails.map((m) => m.to)).toEqual(["pro@example.com"]);
-    });
-
-    it("pago tardío con el horario libre: confirma igual", async () => {
-      const r = await t.crearReserva(datos());
-      await prisma.turno.update({ where: { id: r.turnoId }, data: { expiraEn: new Date(Date.now() - 1000) } });
-      mp.pagos.set("555", { id: "555", estado: "approved", turnoId: r.turnoId, monto: 10000 });
-      await t.procesarPago("555");
+      await t.confirmarSena(r.turnoId);
       expect((await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } })).estado).toBe("CONFIRMADO");
     });
 
-    it("si Mercado Pago falla, no queda el turno colgado", async () => {
-      const { crearPreferenciaSena } = await import("./mercadopago");
-      vi.mocked(crearPreferenciaSena).mockRejectedValueOnce(new Error("MP caído"));
-      await expect(t.crearReserva(datos())).rejects.toThrow(/link de pago/);
-      expect(await prisma.turno.count()).toBe(0);
+    it("seña tardía con el horario ya tomado: no deja confirmar", async () => {
+      const r = await t.crearReserva(datos());
+      await prisma.turno.update({ where: { id: r.turnoId }, data: { expiraEn: new Date(Date.now() - 1000) } });
+      await t.crearReserva(datos({ email: "otra@example.com" }), { porAdmin: true, sinSena: true });
+      await expect(t.confirmarSena(r.turnoId)).rejects.toThrow(/ocupado/);
+      expect((await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } })).estado).toBe("PENDIENTE_PAGO");
+    });
+
+    it("dos confirmaciones simultáneas de reservas vencidas del mismo horario: sólo una gana", async () => {
+      const a = await t.crearReserva(datos({ email: "a@example.com" }));
+      await prisma.turno.update({ where: { id: a.turnoId }, data: { expiraEn: new Date(Date.now() - 1000) } });
+      const b = await t.crearReserva(datos({ email: "b@example.com" }));
+      await prisma.turno.update({ where: { id: b.turnoId }, data: { expiraEn: new Date(Date.now() - 1000) } });
+      const res = await Promise.allSettled([t.confirmarSena(a.turnoId), t.confirmarSena(b.turnoId)]);
+      expect(res.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+      expect(await prisma.turno.count({ where: { estado: "CONFIRMADO" } })).toBe(1);
+    });
+
+    it("la profesional puede cancelar una reserva que espera la seña", async () => {
+      const r = await t.crearReserva(datos());
+      await t.cancelarTurno(r.turnoId, "admin");
+      expect((await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } })).estado).toBe("CANCELADO");
       expect(await t.horariosDisponibles(facial, sabado)).toContain("10:00");
     });
 
     it("los turnos cargados desde el panel no piden seña", async () => {
       const r = await t.crearReserva(datos(), { porAdmin: true, sinSena: true });
-      expect(r.urlPago).toBeUndefined();
+      expect(r.pendienteSena).toBe(false);
       expect((await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } })).estado).toBe("CONFIRMADO");
+    });
+
+    it("con 'sin seña' en la configuración se confirma directo", async () => {
+      await prisma.configuracion.update({ where: { id: 1 }, data: { senaTipo: "NINGUNA" } });
+      const r = await t.crearReserva(datos());
+      await prisma.configuracion.update({ where: { id: 1 }, data: { senaTipo: "FIJO" } });
+      expect(r.pendienteSena).toBe(false);
     });
   });
 

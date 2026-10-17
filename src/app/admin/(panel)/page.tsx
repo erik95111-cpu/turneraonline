@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { aFechaUTC, fechaISO, fechaLarga, horaAR, sumarDias } from "@/lib/tiempo";
+import { aFechaUTC, fechaHoraLarga, fechaISO, fechaLarga, horaAR, sumarDias } from "@/lib/tiempo";
+import { getConfig } from "@/lib/config";
+import { senaPorTransferencia } from "@/lib/sena";
 import { formatPrecio, linkWhatsapp } from "@/lib/formato";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { cambiarEstadoTurno } from "../acciones";
@@ -11,6 +13,16 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
   const desde = sp.desde && /^\d{4}-\d{2}-\d{2}$/.test(sp.desde) ? sp.desde : hoy;
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(desde, i));
   const ahora = new Date();
+
+  const [cfg, cantidadUsuarios] = await Promise.all([getConfig(), prisma.administrador.count()]);
+  const pendientes: { ok: boolean; texto: string; link: string }[] = [
+    { ok: Boolean(cfg.emailProfesional), texto: "Email de la profesional (donde llegan los avisos)", link: "/admin/configuracion" },
+    { ok: Boolean(cfg.whatsapp), texto: "WhatsApp (donde llegan los comprobantes de la seña)", link: "/admin/configuracion" },
+    { ok: cfg.senaTipo === "NINGUNA" || senaPorTransferencia(cfg), texto: "Alias o CBU para la seña", link: "/admin/configuracion" },
+    { ok: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS), texto: "Mails conectados (Gmail en Vercel)", link: "/admin/configuracion#mails" },
+    { ok: cantidadUsuarios > 0, texto: "Usuario propio de la profesional", link: "/admin/usuarios" },
+  ];
+  const faltan = pendientes.filter((x) => !x.ok).length;
 
   const turnos = await prisma.turno.findMany({
     where: {
@@ -47,6 +59,20 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
         </div>
       </div>
 
+      {faltan > 0 && (
+        <section className="card mb-6 p-5">
+          <h2 className="font-semibold">Puesta a punto · faltan {faltan} de {pendientes.length}</h2>
+          <ul className="mt-3 space-y-2 text-sm">
+            {pendientes.map((x) => (
+              <li key={x.texto} className="flex items-center gap-2">
+                <span className={x.ok ? "text-emerald-700" : "text-[#c9a96e]"}>{x.ok ? "✓" : "○"}</span>
+                {x.ok ? <span className="text-[#8b8279] line-through">{x.texto}</span> : <Link href={x.link} className="underline">{x.texto}</Link>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {sp.aviso && (
         <p role="alert" className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{sp.aviso}</p>
       )}
@@ -70,14 +96,25 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
                         <Link href={`/admin/clientas/${t.clientaId}`} className="font-medium hover:underline">{t.clienta.nombre}</Link>
                         <p className="text-sm text-[#6b635b]">
                           {t.servicio.nombre} · {formatPrecio(t.precio)}
-                          {t.montoSena > 0 && t.estado !== "PENDIENTE_PAGO" && ` · seña ${formatPrecio(t.montoSena)} pagada`}
+                          {t.montoSena > 0 && t.estado !== "PENDIENTE_PAGO" && ` · seña ${formatPrecio(t.montoSena)} recibida`}
                         </p>
                         {t.notasClienta && <p className="mt-1 text-xs text-[#8b8279] italic">“{t.notasClienta}”</p>}
+                        {t.estado === "PENDIENTE_PAGO" && t.expiraEn && (
+                          <p className="mt-1 text-xs text-amber-800 first-letter:uppercase">
+                            Seña de {formatPrecio(t.montoSena)} · se libera el {fechaHoraLarga(t.expiraEn)} si no llega
+                          </p>
+                        )}
                       </div>
                       <EstadoBadge estado={t.estado} />
                       <div className="flex flex-wrap gap-1.5">
                         {t.clienta.telefono && (
                           <a className="btn-sec" target="_blank" rel="noopener" href={linkWhatsapp(t.clienta.telefono)}>WhatsApp</a>
+                        )}
+                        {t.estado === "PENDIENTE_PAGO" && (
+                          <>
+                            <EstadoForm id={t.id} desde={desde} estado="SENA_RECIBIDA" label="Seña recibida ✓" destacado />
+                            <EstadoForm id={t.id} desde={desde} estado="CANCELADO" label="Cancelar" />
+                          </>
                         )}
                         {t.estado === "CONFIRMADO" && (
                           <>
@@ -102,13 +139,13 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
   );
 }
 
-function EstadoForm({ id, desde, estado, label }: { id: string; desde: string; estado: string; label: string }) {
+function EstadoForm({ id, desde, estado, label, destacado }: { id: string; desde: string; estado: string; label: string; destacado?: boolean }) {
   return (
     <form action={cambiarEstadoTurno}>
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="desde" value={desde} />
       <input type="hidden" name="estado" value={estado} />
-      <button className="btn-sec">{label}</button>
+      <button className={destacado ? "btn" : "btn-sec"}>{label}</button>
     </form>
   );
 }

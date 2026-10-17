@@ -4,15 +4,15 @@ import { z } from "zod";
 import { prisma } from "./db";
 import { getConfig } from "./config";
 import { calcularSlots } from "./slots";
-import { calcularSena } from "./sena";
+import { calcularSena, senaPorTransferencia } from "./sena";
 import { aFechaUTC, diaSemana, fechaISO, sumarDias } from "./tiempo";
 import { enviarMail } from "./email";
-import { crearPreferenciaSena, mpHabilitado, obtenerPago } from "./mercadopago";
 import {
   mailCancelacion,
   mailConfirmacionClienta,
+  mailNuevaReservaProfesional,
   mailNuevoTurnoProfesional,
-  mailPagoARevisar,
+  mailReservaPendienteClienta,
 } from "./plantillas-email";
 
 type Tx = Prisma.TransactionClient;
@@ -108,15 +108,15 @@ export class ErrorReserva extends Error {}
 const incluir = { clienta: true, servicio: true } as const;
 
 /**
- * Crea una reserva. Si hay seña configurada y Mercado Pago activo devuelve
- * el link de pago; si no, el turno queda confirmado y se envían los mails.
+ * Crea una reserva. Si hay seña configurada (y datos para transferir), el turno
+ * queda apartado esperando el comprobante; si no, queda confirmado.
  */
 export async function crearReserva(
   datos: DatosReserva,
   opciones: { porAdmin?: boolean; sinSena?: boolean } = {},
-): Promise<{ turnoId: string; token: string; urlPago?: string }> {
+): Promise<{ turnoId: string; token: string; pendienteSena: boolean }> {
   const cfg = await getConfig();
-  const cobrarSena = !opciones.sinSena && mpHabilitado() && cfg.senaTipo !== "NINGUNA";
+  const cobrarSena = !opciones.sinSena && senaPorTransferencia(cfg);
 
   const turno = await transaccion(async (tx) => {
       const servicio = await tx.servicio.findFirst({ where: { id: datos.servicioId, activo: true } });
@@ -137,6 +137,8 @@ export async function crearReserva(
       const inicio = aFechaUTC(datos.fecha, datos.hora);
       const montoSena = cobrarSena ? calcularSena(servicio.precio, cfg.senaTipo, cfg.senaValor) : 0;
       const pendiente = montoSena > 0;
+      // El horario queda apartado hasta que llegue la seña (nunca más allá del turno)
+      const limite = Math.min(Date.now() + Math.max(1, cfg.horasParaSena) * 3_600_000, inicio.getTime());
 
       return tx.turno.create({
         data: {
@@ -147,7 +149,7 @@ export async function crearReserva(
           precio: servicio.precio,
           montoSena,
           estado: pendiente ? "PENDIENTE_PAGO" : "CONFIRMADO",
-          expiraEn: pendiente ? new Date(Date.now() + cfg.minutosParaPagar * 60_000) : null,
+          expiraEn: pendiente ? new Date(limite) : null,
           notasClienta: datos.notas,
           creadoPorAdmin: Boolean(opciones.porAdmin),
           token: randomBytes(24).toString("base64url"),
@@ -160,113 +162,41 @@ export async function crearReserva(
     throw err;
   });
 
-  if (turno.estado === "CONFIRMADO") {
-    await notificarConfirmacion(turno.id);
-    return { turnoId: turno.id, token: turno.token };
-  }
-
-  try {
-    const pref = await crearPreferenciaSena({
-      turnoId: turno.id,
-      token: turno.token,
-      titulo: `Seña · ${turno.servicio.nombre}`,
-      monto: turno.montoSena,
-      email: turno.clienta.email,
-      nombre: turno.clienta.nombre,
-      expira: turno.expiraEn!,
-    });
-    await prisma.turno.update({ where: { id: turno.id }, data: { mpPreferenceId: pref.id } });
-    return { turnoId: turno.id, token: turno.token, urlPago: pref.url };
-  } catch (err) {
-    console.error("[mercadopago] Error creando preferencia", err);
-    await prisma.turno.delete({ where: { id: turno.id } });
-    throw new ErrorReserva("No pudimos generar el link de pago. Probá de nuevo en unos minutos.");
-  }
-}
-
-async function notificarConfirmacion(turnoId: string) {
-  const [cfg, t] = await Promise.all([
-    getConfig(),
-    prisma.turno.findUniqueOrThrow({ where: { id: turnoId }, include: incluir }),
-  ]);
-  await Promise.all([
-    enviarMail(mailConfirmacionClienta(cfg, t)),
-    enviarMail(mailNuevoTurnoProfesional(cfg, t)),
-  ]);
+  const pendienteSena = turno.estado === "PENDIENTE_PAGO";
+  const cfgActual = await getConfig();
+  await Promise.all(
+    pendienteSena
+      ? [enviarMail(mailReservaPendienteClienta(cfgActual, turno)), enviarMail(mailNuevaReservaProfesional(cfgActual, turno))]
+      : [enviarMail(mailConfirmacionClienta(cfgActual, turno)), enviarMail(mailNuevoTurnoProfesional(cfgActual, turno))],
+  );
+  return { turnoId: turno.id, token: turno.token, pendienteSena };
 }
 
 /**
- * Consulta un pago en Mercado Pago y, si está aprobado, confirma el turno.
- * Es idempotente: se puede llamar desde el webhook y desde la página de vuelta.
- * Todo pago aprobado que no se pueda aplicar queda registrado y se avisa a la profesional.
+ * La profesional confirma que recibió la seña (comprobante por WhatsApp).
+ * Si la reserva ya había vencido, sólo se confirma si el horario sigue libre.
  */
-export async function procesarPago(paymentId: string): Promise<void> {
-  const pago = await obtenerPago(paymentId);
-  if (!pago.turnoId) return;
+export async function confirmarSena(turnoId: string): Promise<void> {
+  const turno = await transaccion(async (tx) => {
+    const t = await tx.turno.findUnique({ where: { id: turnoId } });
+    if (!t || t.estado !== "PENDIENTE_PAGO") throw new ErrorReserva("Este turno ya no está esperando la seña");
 
-  const resultado = await transaccion(async (tx) => {
-    const turno = await tx.turno.findUnique({ where: { id: pago.turnoId } });
-    if (!turno) return null;
-    // Ya procesado (el webhook puede llegar varias veces)
-    const yaVisto = turno.mpPaymentId === pago.id;
-    if (yaVisto && (turno.pagoEstado === pago.estado || turno.pagoEstado?.startsWith("approved"))) return null;
-
-    const aprobado = pago.estado === "approved";
-
-    if (!aprobado) {
-      if (turno.estado === "PENDIENTE_PAGO") {
-        await tx.turno.update({ where: { id: turno.id }, data: { mpPaymentId: pago.id, pagoEstado: pago.estado } });
-      }
-      return null;
-    }
-
-    // Pago aprobado sobre un turno que ya no espera pago (cancelado mientras pagaba, etc.)
-    if (turno.estado !== "PENDIENTE_PAGO") {
-      await tx.turno.update({
-        where: { id: turno.id },
-        // Si ya tenía otro pago aprobado lo conservamos; si no, registramos éste
-        data: turno.pagoEstado?.startsWith("approved") ? {} : { mpPaymentId: pago.id, pagoEstado: "approved_a_revisar" },
-      });
-      return { revisar: "El pago llegó cuando el turno ya no estaba pendiente (por ejemplo, fue cancelado)." };
-    }
-
-    // El pago tiene que cubrir la seña
-    if (pago.monto + 0.01 < turno.montoSena) {
-      await tx.turno.update({ where: { id: turno.id }, data: { mpPaymentId: pago.id, pagoEstado: "approved_monto_insuficiente" } });
-      return { revisar: `El monto pagado no cubre la seña de ${turno.montoSena}.` };
-    }
-
-    // Si el pago llegó tarde, verificar que nadie haya tomado el horario
     const choque =
       (await tx.turno.count({
-        where: { id: { not: turno.id }, inicio: { lt: turno.fin }, fin: { gt: turno.inicio }, ...filtroOcupa(new Date()) },
+        where: { id: { not: t.id }, inicio: { lt: t.fin }, fin: { gt: t.inicio }, ...filtroOcupa(new Date()) },
       })) +
-      (await tx.bloqueo.count({ where: { desde: { lt: turno.fin }, hasta: { gt: turno.inicio } } }));
-
+      (await tx.bloqueo.count({ where: { desde: { lt: t.fin }, hasta: { gt: t.inicio } } }));
     if (choque) {
-      await tx.turno.update({
-        where: { id: turno.id },
-        data: { estado: "CANCELADO", mpPaymentId: pago.id, pagoEstado: "approved_sin_lugar" },
-      });
-      return { revisar: "El pago llegó después de que venció la reserva y el horario ya estaba ocupado." };
+      throw new ErrorReserva("No se puede confirmar: la reserva había vencido y ese horario ya está ocupado. Coordiná otro horario con la clienta.");
     }
 
-    await tx.turno.update({
-      where: { id: turno.id },
-      data: { estado: "CONFIRMADO", mpPaymentId: pago.id, pagoEstado: "approved", expiraEn: null },
+    return tx.turno.update({
+      where: { id: t.id },
+      data: { estado: "CONFIRMADO", pagoEstado: "transferencia", expiraEn: null },
+      include: incluir,
     });
-    return { confirmado: true };
   });
-
-  if (resultado && "confirmado" in resultado) {
-    await notificarConfirmacion(pago.turnoId);
-  } else if (resultado && "revisar" in resultado) {
-    const [cfg, t] = await Promise.all([
-      getConfig(),
-      prisma.turno.findUniqueOrThrow({ where: { id: pago.turnoId }, include: incluir }),
-    ]);
-    await enviarMail(mailPagoARevisar(cfg, t, resultado.revisar, pago.monto));
-  }
+  await enviarMail(mailConfirmacionClienta(await getConfig(), turno));
 }
 
 export async function cancelarTurno(turnoId: string, por: "clienta" | "admin"): Promise<void> {

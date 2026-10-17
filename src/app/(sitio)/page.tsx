@@ -5,8 +5,7 @@ import { getConfig } from "@/lib/config";
 import { formatDuracion, formatPrecio } from "@/lib/formato";
 import { VideoPresentacion } from "@/components/VideoPresentacion";
 import { Intro } from "@/components/Intro";
-import { calcularSena } from "@/lib/sena";
-import { mpHabilitado } from "@/lib/mercadopago";
+import { calcularSena, senaPorTransferencia } from "@/lib/sena";
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ intro?: string }> }) {
   const { intro } = await searchParams;
@@ -16,7 +15,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ i
   ]);
 
   const categorias = [...new Set(servicios.map((s) => s.categoria))];
-  const conSena = mpHabilitado() && cfg.senaTipo !== "NINGUNA";
+  const conSena = senaPorTransferencia(cfg);
 
   return (
     <>
@@ -131,7 +130,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ i
               [
                 conSena ? "Confirmá con tu seña" : "Confirmá tus datos",
                 conSena
-                  ? "Abonás la seña con Mercado Pago y te llega la confirmación por mail."
+                  ? "Transferís la seña, mandás la captura por WhatsApp y te llega la confirmación por mail."
                   : "Te llega la confirmación por mail al instante.",
               ],
             ].map(([t, d], i) => (

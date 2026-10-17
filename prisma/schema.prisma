@@ -129,11 +129,17 @@ model Configuracion {
   senaTipo             TipoSena @default(FIJO)
   /// Porcentaje (0-100) o monto fijo en pesos según senaTipo
   senaValor            Int      @default(10000)
+  /// Datos para que la clienta transfiera la seña
+  cbu                  String   @default("")
+  alias                String   @default("")
+  titularCuenta        String   @default("")
+  banco                String   @default("")
+  /// Horas que el horario queda apartado esperando el comprobante de la seña
+  horasParaSena        Int      @default(24)
   /// Cada cuántos minutos se ofrecen horarios
   intervaloMin         Int      @default(30)
   anticipacionMinHoras Int      @default(3)
   diasMaxReserva       Int      @default(45)
-  minutosParaPagar     Int      @default(20)
   horasParaCancelar    Int      @default(24)
   politicaCancelacion  String   @default("Podés cancelar sin costo hasta 24 hs antes del turno. Pasado ese plazo la seña no se reintegra.")
   updatedAt            DateTime @updatedAt

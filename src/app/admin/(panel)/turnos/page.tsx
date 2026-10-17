@@ -4,12 +4,13 @@ import { prisma } from "@/lib/db";
 import { fechaHoraLarga } from "@/lib/tiempo";
 import { formatPrecio, linkWhatsapp } from "@/lib/formato";
 import { EstadoBadge } from "@/components/EstadoBadge";
+import { cambiarEstadoTurno } from "../../acciones";
 
 const POR_PAGINA = 50;
 const ESTADOS: [EstadoTurno | "", string][] = [
   ["", "Todos los estados"],
   ["CONFIRMADO", "Confirmados"],
-  ["PENDIENTE_PAGO", "Esperando pago"],
+  ["PENDIENTE_PAGO", "Esperando seña"],
   ["COMPLETADO", "Realizados"],
   ["AUSENTE", "No vinieron"],
   ["CANCELADO", "Cancelados"],
@@ -98,10 +99,17 @@ export default async function Turnos({ searchParams }: { searchParams: Promise<F
               <Link href={`/admin/clientas/${t.clientaId}`} className="font-medium hover:underline">{t.clienta.nombre}</Link>
               <p className="text-sm text-[#6b635b]">
                 {t.servicio.nombre} · {formatPrecio(t.precio)}
-                {t.montoSena > 0 && t.pagoEstado?.startsWith("approved") && ` · seña ${formatPrecio(t.montoSena)} pagada`}
+                {t.montoSena > 0 && t.estado !== "PENDIENTE_PAGO" && t.estado !== "CANCELADO" && ` · seña ${formatPrecio(t.montoSena)} recibida`}
               </p>
             </div>
             <EstadoBadge estado={t.estado} />
+            {t.estado === "PENDIENTE_PAGO" && (
+              <form action={cambiarEstadoTurno}>
+                <input type="hidden" name="id" value={t.id} />
+                <input type="hidden" name="estado" value="SENA_RECIBIDA" />
+                <button className="btn">Seña recibida ✓</button>
+              </form>
+            )}
             {t.clienta.telefono && (
               <a className="btn-sec" target="_blank" rel="noopener" href={linkWhatsapp(t.clienta.telefono)}>WhatsApp</a>
             )}

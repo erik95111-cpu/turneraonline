@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calcularSlots } from "./slots";
 import { aFechaUTC, diaSemana, sumarDias } from "./tiempo";
-import { calcularSena } from "./sena";
+import { calcularSena, senaPorTransferencia } from "./sena";
 
 const base = {
   fecha: "2026-10-05",
@@ -82,5 +82,18 @@ describe("resumenHorarios", () => {
         { diaSemana: 6, horaInicio: "10:00", horaFin: "12:00" },
       ]),
     ).toEqual(["Lunes, Martes · 09:00 a 13:00", "Sábados · 10:00 a 12:00"]);
+  });
+});
+
+describe("senaPorTransferencia", () => {
+  const base = { senaTipo: "FIJO" as const, senaValor: 10000, cbu: "", alias: "" };
+  it("pide seña sólo si hay alias o CBU cargado", () => {
+    expect(senaPorTransferencia(base)).toBe(false);
+    expect(senaPorTransferencia({ ...base, alias: "mc.skin" })).toBe(true);
+    expect(senaPorTransferencia({ ...base, cbu: "000123" })).toBe(true);
+  });
+  it("no pide seña si está configurado 'sin seña' o en 0", () => {
+    expect(senaPorTransferencia({ ...base, alias: "x", senaTipo: "NINGUNA" })).toBe(false);
+    expect(senaPorTransferencia({ ...base, alias: "x", senaValor: 0 })).toBe(false);
   });
 });

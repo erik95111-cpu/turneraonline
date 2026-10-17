@@ -206,7 +206,7 @@ export function Reserva(p: Props) {
             <p className="mt-2">
               Total {formatPrecio(servicio.precio)}
               {montoSena > 0 && (
-                <> · <strong>Seña a abonar ahora: {formatPrecio(montoSena)}</strong></>
+                <> · <strong>Seña para reservar: {formatPrecio(montoSena)}</strong> (por transferencia)</>
               )}
             </p>
           </div>
@@ -235,7 +235,7 @@ export function Reserva(p: Props) {
           {p.politica && <p className={`mt-5 text-xs leading-relaxed ${sub}`}>{p.politica}</p>}
 
           <button type="submit" disabled={enviando} className={`mt-6 w-full sm:w-auto ${claro ? "btn" : "btn-oro"}`}>
-            {enviando ? "Procesando…" : montoSena > 0 ? `Pagar seña con Mercado Pago` : "Confirmar turno"}
+            {enviando ? "Procesando…" : montoSena > 0 ? "Reservar y ver datos para la seña" : "Confirmar turno"}
           </button>
         </form>
       )}
