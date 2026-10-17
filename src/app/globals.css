@@ -124,11 +124,13 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2rem;
-  background: radial-gradient(ellipse at 50% 45%, #1c1712 0%, var(--color-ink) 65%);
-  animation: intro-salida 0.6s ease 2.9s forwards;
+  gap: 2.4rem;
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  background: radial-gradient(ellipse at 50% 42%, #1c1712 0%, var(--color-ink) 65%);
 }
 html[data-intro="no"] .intro { display: none; }
+/* Flotación suave continua (empieza cuando termina la entrada) */
+.intro-flota { animation: intro-flotar 5s ease-in-out 2s infinite; }
 .intro-logo { position: relative; width: min(64vw, 300px); aspect-ratio: 1; }
 .intro-img {
   position: absolute;
@@ -139,16 +141,19 @@ html[data-intro="no"] .intro { display: none; }
   transform: scale(0.86);
   filter: blur(8px);
   box-shadow: 0 0 90px -10px rgba(201, 169, 110, 0.55);
-  animation: intro-logo 1.3s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s forwards;
+  animation:
+    intro-logo 1.3s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s forwards,
+    intro-halo 4s ease-in-out 2s infinite;
 }
 .intro-img img { width: 100%; height: 100%; display: block; }
+/* Brillo: primera pasada a 1.45 s y después se repite cada 5 s */
 .intro-brillo {
   position: absolute;
   inset: 0;
-  background: linear-gradient(105deg, transparent 35%, rgba(255, 236, 196, 0.55) 50%, transparent 65%);
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 236, 196, 0.5) 50%, transparent 65%);
   transform: translateX(-120%);
   mix-blend-mode: screen;
-  animation: intro-brillo 1s ease-in-out 1.45s forwards;
+  animation: intro-brillo 5s ease-in-out 1.45s infinite;
 }
 .intro-aro { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .intro-aro circle {
@@ -159,36 +164,58 @@ html[data-intro="no"] .intro { display: none; }
   stroke-dashoffset: 604;
   animation: intro-aro 1.5s ease-in-out 0.35s forwards;
 }
-.intro-texto {
-  font-family: var(--font-serif);
-  font-size: 1.6rem;
-  letter-spacing: 0.04em;
-  color: var(--color-gold-light);
+/* Lucecita dorada que gira sobre el anillo */
+.intro-orbita {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  animation: intro-aparece 0.8s ease 1.9s forwards, intro-girar 9s linear 1.9s infinite;
+}
+.intro-orbita span {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: #f6e2b5;
+  box-shadow: 0 0 12px 4px rgba(230, 207, 159, 0.75);
+}
+.intro-boton {
   opacity: 0;
   transform: translateY(8px);
-  animation: intro-texto 0.8s ease 1.8s forwards;
+  animation: intro-texto 0.8s ease 1.8s forwards, intro-latido 2.8s ease-in-out 2.8s infinite;
 }
-.intro-saltar {
-  position: absolute;
-  right: 16px;
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  font-size: 0.7rem;
+.intro-ver {
+  font-size: 0.72rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--color-piedra);
-  padding: 0.6rem 1rem;
-  border-radius: 999px;
-  border: 1px solid var(--color-linea);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  opacity: 0;
+  animation: intro-aparece 0.8s ease 2.3s forwards;
 }
-.intro-saltar:hover { color: var(--color-gold-light); border-color: var(--color-gold); }
+.intro-ver:hover { color: var(--color-gold-light); }
 @keyframes intro-logo { to { opacity: 1; transform: scale(1); filter: blur(0); } }
 @keyframes intro-aro { to { stroke-dashoffset: 0; } }
-@keyframes intro-brillo { to { transform: translateX(120%); } }
+@keyframes intro-brillo { 0% { transform: translateX(-120%); } 22%, 100% { transform: translateX(120%); } }
 @keyframes intro-texto { to { opacity: 1; transform: none; } }
-@keyframes intro-salida { to { opacity: 0; visibility: hidden; pointer-events: none; } }
+@keyframes intro-aparece { to { opacity: 1; } }
+@keyframes intro-girar { to { transform: rotate(360deg); } }
+@keyframes intro-flotar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes intro-halo {
+  0%, 100% { box-shadow: 0 0 90px -10px rgba(201, 169, 110, 0.5); }
+  50% { box-shadow: 0 0 120px 0 rgba(201, 169, 110, 0.7); }
+}
+@keyframes intro-latido {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(230, 207, 159, 0); }
+  50% { box-shadow: 0 0 28px 2px rgba(230, 207, 159, 0.45); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .intro { animation-delay: 0.9s; }
-  .intro-img, .intro-texto { animation-duration: 0.01s; animation-delay: 0s; filter: none; }
+  .intro-flota, .intro-orbita, .intro-brillo { animation: none; }
+  .intro-orbita, .intro-brillo { display: none; }
+  .intro-img, .intro-boton, .intro-ver { animation: intro-texto 0.01s forwards; filter: none; }
   .intro-aro circle { animation-duration: 0.01s; animation-delay: 0s; }
-  .intro-brillo { display: none; }
 }
