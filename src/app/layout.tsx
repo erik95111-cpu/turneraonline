@@ -36,7 +36,7 @@ export const viewport: Viewport = { themeColor: "#0b0a0c" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es-AR" className={`${cormorant.variable} ${montserrat.variable}`}>
+    <html lang="es-AR" className={`${cormorant.variable} ${montserrat.variable}`} suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

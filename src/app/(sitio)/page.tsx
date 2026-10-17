@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { formatDuracion, formatPrecio } from "@/lib/formato";
 import { VideoPresentacion } from "@/components/VideoPresentacion";
+import { Intro } from "@/components/Intro";
 import { calcularSena } from "@/lib/sena";
 import { mpHabilitado } from "@/lib/mercadopago";
 
@@ -18,6 +19,7 @@ export default async function Home() {
 
   return (
     <>
+      <Intro />
       {/* ─── Hero ─── */}
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_70%_40%,rgba(201,169,110,0.16),transparent_60%)]" />
