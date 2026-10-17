@@ -191,12 +191,11 @@ const Converge: React.FC<{ t: number }> = ({ t }) => {
 // ---------- Logo en círculo ----------
 const LogoReveal: React.FC<{ t: number; fps: number }> = ({ t, fps }) => {
   const R = 400;
-  const cy = 470;
+  const cy = CY;
   const grow = spring({ frame: t, fps, config: { damping: 11, stiffness: 90 } });
   const wipe = interpolate(t, [16, 40], [0, 1], { ...clamp, easing: Easing.inOut(Easing.cubic) });
   const logoW = 680;
   const logoH = logoW * LOGO_RATIO;
-  const text = spring({ frame: t - 40, fps, config: { damping: 16 } });
   const sparkX = CX - logoW / 2 + wipe * logoW;
   return (
     <AbsoluteFill style={{ fontFamily: FONT }}>
@@ -238,28 +237,6 @@ const LogoReveal: React.FC<{ t: number; fps: number }> = ({ t, fps }) => {
           }}
         />
       ) : null}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          top: 950,
-          textAlign: "center",
-          color: C.white,
-          fontWeight: 800,
-          fontSize: 36,
-          letterSpacing: 2,
-          opacity: text,
-          transform: `translateY(${(1 - text) * 20}px)`,
-        }}
-      >
-        {PRODUCTS.map((p, i) => (
-          <span key={p.name}>
-            {i > 0 ? <span style={{ color: C.red, margin: "0 18px" }}>+</span> : null}
-            {p.name}
-          </span>
-        ))}
-      </div>
     </AbsoluteFill>
   );
 };

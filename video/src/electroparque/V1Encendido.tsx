@@ -100,7 +100,7 @@ const LogoScreen: React.FC<{ t: number; fps: number }> = ({ t, fps }) => {
   );
 };
 
-const ChannelScreen: React.FC<{ index: number; t: number; fps: number }> = ({ index, t, fps }) => {
+export const ChannelScreen: React.FC<{ index: number; t: number; fps: number }> = ({ index, t, fps }) => {
   const product = PRODUCTS[index];
   const pop = spring({ frame: t, fps, config: { damping: 11, stiffness: 160 } });
   const slide = spring({ frame: t - 3, fps, config: { damping: 16 } });
@@ -161,31 +161,11 @@ const FinalScreen: React.FC<{ t: number; fps: number }> = ({ t, fps }) => {
       style={{
         background: "radial-gradient(ellipse at 50% 40%, #ffffff 45%, #dbe5f6 100%)",
         alignItems: "center",
-        fontFamily: FONT,
+        justifyContent: "center",
       }}
     >
-      <div style={{ marginTop: 110, transform: `scale(${0.8 + 0.2 * s})`, opacity: s }}>
-        <LogoImage width={820} shine={interpolate(t, [30, 60], [0, 1], clamp)} />
-      </div>
-      <div style={{ display: "flex", gap: 46, marginTop: 34 }}>
-        {PRODUCTS.map((p, i) => {
-          const a = spring({ frame: t - 14 - i * 5, fps, config: { damping: 14 } });
-          return (
-            <div
-              key={p.name}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                opacity: a,
-                transform: `translateY(${(1 - a) * 30}px)`,
-              }}
-            >
-              <ProductIcon icon={p.icon} size={70} color={C.indigo} accent={C.electric} />
-              <div style={{ color: C.indigo, fontWeight: 800, fontSize: 19, marginTop: 4 }}>{p.name}</div>
-            </div>
-          );
-        })}
+      <div style={{ transform: `scale(${0.8 + 0.2 * s})`, opacity: s }}>
+        <LogoImage width={860} shine={interpolate(t, [30, 60], [0, 1], clamp)} />
       </div>
     </AbsoluteFill>
   );

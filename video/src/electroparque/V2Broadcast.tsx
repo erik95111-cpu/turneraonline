@@ -16,7 +16,7 @@ const FINAL = INTRO_END + SHOT_LEN * PRODUCTS.length; // 272
 // ---------- Placa de circuito ----------
 type Trace = { d: string; end: [number, number] };
 
-const makeTraces = (count: number, size: number): Trace[] => {
+export const makeTraces = (count: number, size: number): Trace[] => {
   const dirs = [
     [1, 0], [0, 1], [-1, 0], [0, -1], [0.7071, 0.7071], [-0.7071, 0.7071], [0.7071, -0.7071], [-0.7071, -0.7071],
   ];
@@ -237,7 +237,6 @@ const ProductShot: React.FC<{ index: number; t: number; frame: number; fps: numb
 
 const Final: React.FC<{ t: number; fps: number }> = ({ t, fps }) => {
   const card = spring({ frame: t - 6, fps, config: { damping: 12, stiffness: 90 } });
-  const text = spring({ frame: t - 26, fps, config: { damping: 16 } });
   const rays = t * 0.4;
   return (
     <AbsoluteFill style={{ background: "linear-gradient(180deg, #7e8aa3 0%, #c9d3e3 45%, #eef2f8 62%)", overflow: "hidden" }}>
@@ -284,29 +283,6 @@ const Final: React.FC<{ t: number; fps: number }> = ({ t, fps }) => {
           <LogoCard width={900} glow={0} />
         </div>
       </AbsoluteFill>
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          top: 880,
-          textAlign: "center",
-          fontFamily: FONT,
-          fontWeight: 800,
-          fontSize: 34,
-          color: C.indigo,
-          letterSpacing: 2,
-          opacity: text,
-          transform: `translateY(${(1 - text) * 20}px)`,
-        }}
-      >
-        {PRODUCTS.map((p, i) => (
-          <span key={p.name}>
-            {i > 0 ? <span style={{ color: C.red, margin: "0 18px" }}>•</span> : null}
-            {p.name}
-          </span>
-        ))}
-      </div>
     </AbsoluteFill>
   );
 };

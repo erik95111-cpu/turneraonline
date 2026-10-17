@@ -9,12 +9,17 @@
   },
   "private": true,
   "dependencies": {
+    "@react-three/drei": "10.7.9",
+    "@react-three/fiber": "9.8.2",
     "@remotion/cli": "4.0.536",
     "@remotion/fonts": "4.0.536",
+    "@remotion/three": "4.0.536",
     "@remotion/zod-types": "4.0.536",
+    "@types/three": "0.185.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "remotion": "4.0.536",
+    "three": "0.185.1",
     "zod": "4.5.4"
   },
   "devDependencies": {
@@ -29,7 +34,8 @@
     "dev": "remotion studio",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc"
+    "lint": "eslint src && tsc",
+    "textures": "mkdir -p public/r3d && remotion still Tex-Screen public/r3d/screen-logo.png --scale=2 --props='{\"slide\":-1}' && for i in 0 1 2 3; do remotion still Tex-Screen public/r3d/screen-$i.png --scale=2 --props=\"{\\\"slide\\\":$i}\"; done && remotion still Tex-CarUi public/r3d/car-ui.png --scale=2 && remotion still Tex-Pcb public/r3d/pcb.png"
   },
   "allowScripts": {
     "esbuild": false
