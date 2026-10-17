@@ -21,11 +21,11 @@ const Scene: React.FC<{ frame: number; portrait: boolean; total: number }> = ({ 
     interpolate(t, [0, 16], [0, 1], { ...clamp, easing: Easing.out(Easing.back(1.3)) }),
     interpolate(t, [SEG - 12, SEG], [1, 0], { ...clamp, easing: Easing.in(Easing.cubic) }),
   );
-  const sweep = interpolate(frame % (total / 2), [30, 90], [-9, 9], clamp);
+  const shine = interpolate(frame % (total / 2), [30, 90], [-1, 1], clamp);
   const bob = Math.sin(ang * 2) * 0.05;
 
-  const tablePos: [number, number, number] = portrait ? [0, 0, 0] : [1.5, 0, 0];
-  const platePos: [number, number, number] = portrait ? [0, 3.75 + bob, 0.3] : [-2.5, 1.75 + bob, 0.8];
+  const tablePos: [number, number, number] = portrait ? [0, 0, 0] : [1.7, 0, 0];
+  const platePos: [number, number, number] = portrait ? [0, 3.75 + bob, 0.3] : [-2.15, 1.8 + bob, 0.8];
   const cam: [number, number, number] = portrait ? [Math.sin(ang) * 0.4, 2.7, 9.6] : [0.6 + Math.sin(ang) * 0.4, 2.3, 7.6];
   const target: [number, number, number] = portrait ? [0, 2.15, 0] : [0.1, 1.35, 0];
 
@@ -34,9 +34,10 @@ const Scene: React.FC<{ frame: number; portrait: boolean; total: number }> = ({ 
       <CameraRig position={cam} target={target} fov={portrait ? 42 : 36} />
       <color attach="background" args={["#03040b"]} />
       <fog attach="fog" args={["#03040b", 11, 26]} />
-      <StudioEnv sweep={sweep} />
+      <StudioEnv />
       <ambientLight intensity={0.1} />
       <spotLight position={[tablePos[0], 7, 2]} angle={0.45} penumbra={1} intensity={60} color="#cfe0ff" />
+      <pointLight position={[tablePos[0], 2.4, 4]} intensity={14} color="#ffffff" distance={12} />
       <pointLight position={[-4, 2, 2]} intensity={8} color="#3B8FE0" distance={10} />
       <pointLight position={[4, 1.5, 2]} intensity={5} color="#E53225" distance={8} />
 
@@ -44,14 +45,14 @@ const Scene: React.FC<{ frame: number; portrait: boolean; total: number }> = ({ 
         <planeGeometry args={[40, 14]} />
         <meshStandardMaterial color="#080c22" roughness={0.95} />
       </mesh>
-      <VoltWall width={portrait ? 9 : 12} opacity={0.4} position={portrait ? [0, 6.4, -5.1] : [0, 3.4, -5.1]} />
+      <VoltWall width={portrait ? 9 : 12} opacity={0.4} position={portrait ? [0, 4.7, -5.1] : [0, 3.4, -5.1]} />
 
       <group position={tablePos} scale={portrait ? 0.82 : 1}>
         <Turntable angle={ang * 2} ringAngle={ang * 3} />
         <ProductOnTable index={i} rise={rise} spin={-0.7 + t * 0.014} />
       </group>
       <group position={platePos} rotation-y={portrait ? 0 : 0.32}>
-        <LogoPlate width={portrait ? 3.5 : 3.0} />
+        <LogoPlate width={portrait ? 3.5 : 2.7} shine={shine} />
       </group>
 
       <ReflectiveFloor />

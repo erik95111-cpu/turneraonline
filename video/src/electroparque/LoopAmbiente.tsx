@@ -57,7 +57,7 @@ export const LoopAmbiente: React.FC = () => {
 
   const cardW = portrait ? 820 : 860;
   const rx = portrait ? 400 : 780;
-  const ry = portrait ? 620 : 330;
+  const ry = 330;
   const cx = width / 2;
   const cy = height / 2;
 
@@ -68,11 +68,16 @@ export const LoopAmbiente: React.FC = () => {
 
   const icons = PRODUCTS.map((p, i) => {
     const a = ang + (i * Math.PI) / 2;
-    // en vertical la órbita gira "de canto" para pasar por arriba y abajo del logo
-    const x = portrait ? Math.cos(a) * rx * 0.55 : Math.cos(a) * rx;
-    const y = portrait ? Math.sin(a) * ry : Math.sin(a) * ry * 0.55;
-    const depth = portrait ? Math.cos(a) : Math.sin(a); // >0 delante
-    return { p, x, y, depth };
+    if (!portrait) {
+      // órbita horizontal, siempre por fuera del logo
+      return { p, x: Math.cos(a) * rx, y: Math.sin(a) * ry, depth: Math.sin(a), fade: 1 };
+    }
+    // en vertical el logo ocupa casi todo el ancho: los íconos giran por arriba y por abajo
+    // y se desvanecen al cruzar por los costados para nunca taparlo
+    const sa = Math.sin(a);
+    const y = Math.sign(sa) * (330 + Math.abs(sa) * 360);
+    const fade = interpolate(Math.abs(sa), [0.12, 0.4], [0, 1], clamp);
+    return { p, x: Math.cos(a) * rx, y, depth: -Math.abs(Math.cos(a)) + 0.5, fade };
   });
 
   const renderIcon = (it: (typeof icons)[number]) => {
@@ -95,7 +100,7 @@ export const LoopAmbiente: React.FC = () => {
           border: `3px solid rgba(124,196,255,${0.4 + 0.4 * (it.depth + 1) * 0.5})`,
           boxShadow: `0 0 40px rgba(59,143,224,0.6)`,
           transform: `scale(${s})`,
-          opacity: 0.45 + 0.55 * (it.depth + 1) * 0.5,
+          opacity: (0.45 + 0.55 * (it.depth + 1) * 0.5) * it.fade,
         }}
       >
         <ProductIcon icon={it.p.icon} size={size * 0.62} glow />

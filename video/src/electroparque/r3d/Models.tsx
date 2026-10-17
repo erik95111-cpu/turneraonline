@@ -13,17 +13,17 @@ export const useTex = (path: string) => {
 };
 
 // ---------- Iluminación de estudio (reflejos) ----------
-export const StudioEnv: React.FC<{ sweep?: number; warm?: number }> = ({ sweep, warm = 0 }) => (
-  <Environment resolution={256} frames={sweep === undefined ? 1 : Infinity}>
+const StudioEnvInner: React.FC = () => (
+  <Environment resolution={128} frames={1}>
     <Lightformer intensity={2.2} position={[0, 6, -1]} rotation-x={Math.PI / 2} scale={[12, 5, 1]} />
     <Lightformer intensity={3} color="#7CC4FF" position={[-7, 1.5, 1]} rotation-y={Math.PI / 2} scale={[2.5, 9, 1]} />
     <Lightformer intensity={2.4} color="#3B8FE0" position={[7, 1.5, 1]} rotation-y={-Math.PI / 2} scale={[2.5, 9, 1]} />
-    <Lightformer intensity={1.2 + warm} color="#E53225" position={[0, 0.6, 7]} scale={[3, 0.5, 1]} />
-    {sweep !== undefined ? (
-      <Lightformer intensity={6} position={[sweep, 1, 5]} rotation-z={0.5} scale={[1.2, 12, 1]} />
-    ) : null}
+    <Lightformer intensity={1.2} color="#E53225" position={[4, -1, 6]} scale={[2, 0.3, 1]} />
   </Environment>
 );
+
+// Memorizado: si los props no cambian, el mapa de reflejos no se vuelve a calcular
+export const StudioEnv = React.memo(StudioEnvInner);
 
 export const ReflectiveFloor: React.FC<{ color?: string; y?: number }> = ({ color = "#070a1c", y = 0 }) => (
   <mesh rotation-x={-Math.PI / 2} position-y={y}>
@@ -149,7 +149,7 @@ export const BoardModel: React.FC = () => {
     <group>
       <mesh>
         <boxGeometry args={[2.2, 1.9, 0.04]} />
-        <meshPhysicalMaterial map={pcb} roughness={0.45} metalness={0.3} clearcoat={0.6} />
+        <meshPhysicalMaterial map={pcb} emissiveMap={pcb} emissive="#ffffff" emissiveIntensity={0.55} roughness={0.45} metalness={0.3} clearcoat={0.6} />
       </mesh>
       {/* disipador del procesador */}
       <RoundedBox args={[0.62, 0.62, 0.06]} radius={0.02} position={[-0.05, 0.25, 0.05]}>
@@ -227,18 +227,42 @@ export const CarScreenModel: React.FC = () => {
 };
 
 // ---------- Placa con el logo ----------
-export const LogoPlate: React.FC<{ width?: number }> = ({ width = 3.6 }) => {
+// Banda de luz suave (para el brillo que recorre la placa)
+const useShineTexture = () =>
+  useMemo(() => {
+    const w = 256;
+    const data = new Uint8Array(w * 4);
+    for (let x = 0; x < w; x++) {
+      const d = (x - w / 2) / (w * 0.12);
+      const v = Math.round(255 * Math.exp(-d * d));
+      data.set([255, 255, 255, v], x * 4);
+    }
+    const tex = new THREE.DataTexture(data, w, 1);
+    tex.needsUpdate = true;
+    return tex;
+  }, []);
+
+// shine: posición del brillo, de -1 (izquierda, fuera) a 1 (derecha, fuera)
+export const LogoPlate: React.FC<{ width?: number; shine?: number }> = ({ width = 3.6, shine }) => {
   const logo = useTex("electroparque-white.png");
+  const shineTex = useShineTexture();
   const h = width * 0.3;
+  shineTex.offset.x = -(shine ?? -1);
   return (
     <group>
       <RoundedBox args={[width, h, 0.14]} radius={0.06} smoothness={6}>
-        <meshPhysicalMaterial color="#ffffff" roughness={0.18} metalness={0} clearcoat={1} clearcoatRoughness={0.05} />
+        <meshPhysicalMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.6} roughness={0.18} metalness={0} clearcoat={1} clearcoatRoughness={0.05} />
       </RoundedBox>
       <mesh position-z={0.0705}>
         <planeGeometry args={[width * 0.9, width * 0.9 * (510 / 2190)]} />
         <meshBasicMaterial map={logo} toneMapped={false} />
       </mesh>
+      {shine !== undefined && shine > -1 && shine < 1 ? (
+        <mesh position-z={0.072}>
+          <planeGeometry args={[width - 0.05, h - 0.05]} />
+          <meshBasicMaterial map={shineTex} transparent opacity={0.55} color="#bfe0ff" blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+        </mesh>
+      ) : null}
       {/* borde azul */}
       <mesh position-z={-0.01}>
         <planeGeometry args={[width + 0.08, h + 0.08]} />
