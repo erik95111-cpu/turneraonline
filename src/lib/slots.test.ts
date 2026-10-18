@@ -63,7 +63,7 @@ describe("calcularSena", () => {
   });
 });
 
-import { resumenHorarios } from "./formato";
+import { linkWhatsapp, numeroWhatsapp, resumenHorarios } from "./formato";
 
 describe("resumenHorarios", () => {
   it("agrupa franjas de los sábados", () => {
@@ -95,5 +95,21 @@ describe("senaPorTransferencia", () => {
   it("no pide seña si está configurado 'sin seña' o en 0", () => {
     expect(senaPorTransferencia({ ...base, alias: "x", senaTipo: "NINGUNA" })).toBe(false);
     expect(senaPorTransferencia({ ...base, alias: "x", senaValor: 0 })).toBe(false);
+  });
+});
+
+describe("numeroWhatsapp", () => {
+  it("completa el 549 en celulares argentinos escritos de cualquier forma", () => {
+    for (const n of ["9 11 6405-2481", "11 6405-2481", "1164052481", "011 6405-2481", "+54 9 11 6405 2481",
+      "54 11 6405 2481", "011 15 6405-2481", "11 15 6405 2481", "0054 9 11 6405 2481"]) {
+      expect(numeroWhatsapp(n), n).toBe("5491164052481");
+    }
+  });
+  it("funciona con códigos de área del interior", () => {
+    expect(numeroWhatsapp("351 15 555 1234")).toBe("5493515551234");
+    expect(numeroWhatsapp("0351 555-1234")).toBe("5493515551234");
+  });
+  it("arma el link con el mensaje", () => {
+    expect(linkWhatsapp("9 11 6405-2481", "Hola!")).toBe("https://wa.me/5491164052481?text=Hola!");
   });
 });
