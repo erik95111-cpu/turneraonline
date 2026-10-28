@@ -101,7 +101,7 @@ Sin `SMTP_*` configurado, los mails no se envían y se muestran en la consola.
 
 Claves sólo en el servidor (con chequeo automático en cada deploy), RLS en todas las tablas, cierre de sesión completo,
 freno a la fuerza bruta en el login, planes B en las funciones críticas y errores etiquetados `[APP]` / `[LIB:…]`.
-Explicado en detalle en [SEGURIDAD.md](SEGURIDAD.md).
+Explicado en detalle en [SEGURIDAD.md](SEGURIDAD.md), y el código línea por línea en [docs/guia-codigo-seguridad.md](docs/guia-codigo-seguridad.md).
 
 ## Estructura
 
