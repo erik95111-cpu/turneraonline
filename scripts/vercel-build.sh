@@ -9,6 +9,7 @@ if [ -z "$DATABASE_URL" ]; then
   exit 1
 fi
 npx prisma generate
+npx tsx scripts/migraciones-ajenas.ts
 npx prisma migrate deploy
 npx tsx prisma/seed.ts
 npx next build
