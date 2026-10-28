@@ -7,15 +7,17 @@ import { VideoPresentacion } from "@/components/VideoPresentacion";
 import { Intro } from "@/components/Intro";
 import { TarjetaRegalo } from "@/components/TarjetaRegalo";
 import { calcularSena, pideSena } from "@/lib/sena";
+import { ahorroCombo, conIncluye, textoIncluye } from "@/lib/combos";
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ intro?: string }> }) {
   const { intro } = await searchParams;
   const [cfg, servicios] = await Promise.all([
     getConfig(),
-    prisma.servicio.findMany({ where: { activo: true }, orderBy: [{ orden: "asc" }, { nombre: "asc" }] }),
+    prisma.servicio.findMany({ where: { activo: true }, orderBy: [{ orden: "asc" }, { nombre: "asc" }], include: conIncluye }),
   ]);
 
-  const categorias = [...new Set(servicios.map((s) => s.categoria))];
+  // Los combos van primero
+  const categorias = [...new Set([...servicios.filter((s) => s.esCombo), ...servicios].map((s) => s.categoria))];
   const conSena = pideSena(cfg);
 
   return (
@@ -97,11 +99,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ i
                   className="group flex flex-col rounded-2xl border border-linea bg-carbon p-6 transition hover:border-gold/50"
                 >
                   <h4 className="font-serif text-2xl leading-tight">{s.nombre}</h4>
+                  {s.esCombo && <p className="mt-2 text-sm text-gold-light">Incluye: {textoIncluye(s)}</p>}
                   {s.descripcion && <p className="mt-3 flex-1 text-sm leading-relaxed text-piedra">{s.descripcion}</p>}
                   <div className="mt-6 flex items-end justify-between border-t border-linea pt-4">
                     <div>
                       <p className="text-xs tracking-widest text-piedra uppercase">{formatDuracion(s.duracionMin)}</p>
                       <p className="mt-1 font-serif text-2xl text-gold-light">{formatPrecio(s.precio)}</p>
+                      {s.esCombo && ahorroCombo(s).ahorro > 0 && (
+                        <p className="text-xs text-piedra"><s>{formatPrecio(ahorroCombo(s).separado)}</s> · ahorrás {formatPrecio(ahorroCombo(s).ahorro)}</p>
+                      )}
                       {conSena && (
                         <p className="text-xs text-piedra">Seña {formatPrecio(calcularSena(s.precio, cfg.senaTipo, cfg.senaValor))}</p>
                       )}

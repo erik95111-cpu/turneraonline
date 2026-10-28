@@ -9,6 +9,7 @@ import { USUARIO_MAESTRO, cerrarSesion, crearSesion, requireAdmin } from "@/lib/
 import { hashPassword, verificarPassword } from "@/lib/passwords";
 import { ErrorReserva, cancelarTurno, confirmarSena, crearReserva, reservaSchema } from "@/lib/turnos";
 import { probarEnvio } from "@/lib/email";
+import { guardarCombo } from "@/lib/combos";
 import { activarGiftCard, anularGiftCard, crearGiftCard, giftCardSchema } from "@/lib/giftcards";
 import { aFechaUTC } from "@/lib/tiempo";
 import type { ResultadoReserva } from "@/app/actions/reservas";
@@ -86,11 +87,37 @@ export async function guardarServicio(fd: FormData) {
   redirect("/admin/servicios");
 }
 
+export async function guardarComboAccion(fd: FormData) {
+  await requireAdmin();
+  const volver = (q: Record<string, string>): never => redirect(`/admin/servicios?${new URLSearchParams(q)}`);
+  try {
+    await guardarCombo({
+      id: txt(fd, "id"),
+      nombre: txt(fd, "nombre"),
+      descripcion: txt(fd, "descripcion"),
+      incluye: fd.getAll("incluye").map(String),
+      precio: num(fd, "precio"),
+      duracionMin: num(fd, "duracionMin"),
+      orden: num(fd, "orden"),
+      activo: fd.get("activo") === "on",
+    });
+  } catch (err) {
+    if (!(err instanceof ErrorReserva)) throw err;
+    volver({ editar: txt(fd, "id") || "nuevo-combo", error: err.message });
+  }
+  refrescar();
+  volver({ ok: "Combo guardado" });
+}
+
 export async function eliminarServicio(fd: FormData) {
   await requireAdmin();
   const id = txt(fd, "id");
   // Con turnos o gift cards lo desactivamos para no perder el historial
-  const usados = (await prisma.turno.count({ where: { servicioId: id } })) + (await prisma.giftCard.count({ where: { servicioId: id } }));
+  const usados =
+    (await prisma.turno.count({ where: { servicioId: id } })) +
+    (await prisma.giftCard.count({ where: { servicioId: id } })) +
+    // Si forma parte de un combo tampoco se borra: el combo quedaría incompleto
+    (await prisma.servicio.count({ where: { incluye: { some: { id } } } }));
   // Si ya tiene turnos lo desactivamos para no perder el historial
   if (usados) await prisma.servicio.update({ where: { id }, data: { activo: false } });
   else await prisma.servicio.delete({ where: { id } });

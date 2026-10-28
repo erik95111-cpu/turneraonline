@@ -143,7 +143,7 @@ export const reservaSchema = z.object({
 export type DatosReserva = z.input<typeof reservaSchema>;
 
 
-const incluir = { clienta: true, servicio: true, giftCard: true } as const;
+const incluir = { clienta: true, servicio: { include: { incluye: { select: { nombre: true }, orderBy: { nombre: "asc" } } } }, giftCard: true } as const;
 
 /**
  * Crea una reserva. Si hay seña configurada, el turno queda apartado hasta que

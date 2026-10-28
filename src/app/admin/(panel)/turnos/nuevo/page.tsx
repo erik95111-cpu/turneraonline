@@ -1,15 +1,12 @@
 import { prisma } from "@/lib/db";
+import { serviciosParaReservar } from "@/lib/combos";
 import { fechaISO, sumarDias } from "@/lib/tiempo";
 import { Reserva } from "@/components/Reserva";
 import { reservarDesdePanel } from "../../../acciones";
 
 export default async function NuevoTurno() {
   const [servicios, franjas] = await Promise.all([
-    prisma.servicio.findMany({
-      where: { activo: true },
-      orderBy: [{ orden: "asc" }, { nombre: "asc" }],
-      select: { id: true, nombre: true, descripcion: true, categoria: true, duracionMin: true, precio: true },
-    }),
+    serviciosParaReservar(),
     prisma.horarioAtencion.findMany({ select: { diaSemana: true } }),
   ]);
   const hoy = fechaISO(new Date());

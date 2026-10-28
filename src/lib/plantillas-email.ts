@@ -4,7 +4,7 @@ import { fechaHoraLarga } from "./tiempo";
 import { siteUrl } from "./config";
 import type { Mail } from "./email";
 
-type TurnoCompleto = Turno & { clienta: Clienta; servicio: Servicio; giftCard?: GiftCard | null };
+type TurnoCompleto = Turno & { clienta: Clienta; servicio: Servicio & { incluye?: { nombre: string }[] }; giftCard?: GiftCard | null };
 type GiftCardCompleta = GiftCard & { servicio: Servicio | null };
 
 const esc = (s: string) =>
@@ -31,6 +31,7 @@ function detalle(t: TurnoCompleto): string {
     `<tr><td style="padding:6px 0;color:#888;font:14px Arial,sans-serif;width:120px">${k}</td><td style="padding:6px 0;font:15px Arial,sans-serif">${v}</td></tr>`;
   return `<table cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0;border-top:1px solid #eee;border-bottom:1px solid #eee">
 ${fila("Tratamiento", esc(t.servicio.nombre))}
+${t.servicio.incluye?.length ? fila("Incluye", esc(t.servicio.incluye.map((s) => s.nombre).join(" + "))) : ""}
 ${fila("Fecha", esc(fechaHoraLarga(t.inicio)))}
 ${fila("Duración", formatDuracion(t.servicio.duracionMin))}
 ${fila("Precio", formatPrecio(t.precio))}
@@ -51,6 +52,7 @@ function p(texto: string): string {
 function textoPlano(t: TurnoCompleto): string {
   return [
     `Tratamiento: ${t.servicio.nombre}`,
+    t.servicio.incluye?.length ? `Incluye: ${t.servicio.incluye.map((s) => s.nombre).join(" + ")}` : "",
     `Fecha: ${fechaHoraLarga(t.inicio)}`,
     `Duración: ${formatDuracion(t.servicio.duracionMin)}`,
     `Precio: ${formatPrecio(t.precio)}`,

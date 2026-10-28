@@ -50,6 +50,10 @@ model Servicio {
   orden       Int        @default(0)
   turnos      Turno[]
   giftCards   GiftCard[]
+  /// Combo / pack: incluye otros tratamientos y tiene precio propio
+  esCombo     Boolean    @default(false)
+  incluye     Servicio[] @relation("Combo")
+  enCombos    Servicio[] @relation("Combo")
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 }

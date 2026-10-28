@@ -15,6 +15,9 @@ export interface ServicioReserva {
   categoria: string;
   duracionMin: number;
   precio: number;
+  /** Sólo en combos: “A + B” y cuánto se ahorra frente a por separado */
+  incluye?: string;
+  ahorro?: number;
 }
 
 interface Props {
@@ -308,8 +311,10 @@ export function Reserva(p: Props) {
                           className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${sel ? "border-gold bg-gold/10" : "border-linea hover:border-gold/60"}`}
                         >
                           <p className="font-serif text-lg leading-snug text-cream">{s.nombre}</p>
+                          {s.incluye && <p className="mt-1 text-xs leading-relaxed text-piedra">Incluye: {s.incluye}</p>}
                           <p className="mt-1 text-sm text-piedra">
                             {formatDuracion(s.duracionMin)} · <span className="text-gold-light">{formatPrecio(s.precio)}</span>
+                            {s.ahorro ? <span className="ml-2 rounded-full bg-gold/15 px-2 py-0.5 text-[0.7rem] text-gold-light">Ahorrás {formatPrecio(s.ahorro)}</span> : null}
                           </p>
                         </button>
                       );
@@ -426,6 +431,7 @@ export function Reserva(p: Props) {
               <dl className="divide-y divide-linea rounded-2xl border border-linea">
                 {[
                   ["Tratamiento", servicio.nombre],
+                  ...(servicio.incluye ? [["Incluye", servicio.incluye]] : []),
                   ["Día", `${mayuscula(fechaTexto(fecha))}, ${hora} hs`],
                   ["Duración", formatDuracion(servicio.duracionMin)],
                   ["Precio", formatPrecio(servicio.precio)],

@@ -25,6 +25,7 @@ reciben la confirmación por **mail** (la profesional también recibe un aviso).
 - Agenda semanal: marcar turnos como realizados / no vino / cancelar, botón de WhatsApp.
 - Cargar turnos a mano (los que llegan por WhatsApp).
 - Tratamientos: alta, edición, precios, duración, ocultar.
+- **Combos / packs**: la profesional elige varios tratamientos y un precio especial; la duración se suma sola. En la web aparecen primero, con lo que incluyen y cuánto se ahorra, y se reservan como un turno.
 - Horarios de atención (varias franjas por día) y días bloqueados (vacaciones, feriados).
 - Clientas: ficha con tipo de piel, alergias, notas privadas e historial.
 - Gift cards: pedidos, “Pago recibido”, anular, saldo, en qué turno se usó y venta en persona.

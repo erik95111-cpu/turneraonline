@@ -20,7 +20,7 @@ export default async function TurnoPage({ params, searchParams }: Props) {
   const { id } = await params;
   const { t: token, nuevo } = await searchParams;
 
-  const turno = await prisma.turno.findUnique({ where: { id }, include: { servicio: true, clienta: true, giftCard: true } });
+  const turno = await prisma.turno.findUnique({ where: { id }, include: { servicio: { include: { incluye: { select: { nombre: true } } } }, clienta: true, giftCard: true } });
   if (!turno || !token || turno.token !== token) notFound();
 
   const cfg = await getConfig();
@@ -41,6 +41,7 @@ export default async function TurnoPage({ params, searchParams }: Props) {
 
   const filas: [string, string][] = [
     ["Tratamiento", turno.servicio.nombre],
+    ...(turno.servicio.incluye.length ? [["Incluye", turno.servicio.incluye.map((s) => s.nombre).join(" + ")] as [string, string]] : []),
     ["Fecha", fechaHoraLarga(turno.inicio)],
     ["Duración", formatDuracion(turno.servicio.duracionMin)],
     ["Precio", formatPrecio(turno.precio)],
