@@ -22,7 +22,7 @@ export async function GET(req: Request) {
       recordatorioEnviado: false,
       inicio: { gte: aFechaUTC(manana, "00:00"), lt: aFechaUTC(sumarDias(manana, 1), "00:00") },
     },
-    include: { clienta: true, servicio: true },
+    include: { clienta: true, servicio: true, tratamientos: { orderBy: { orden: "asc" as const } } },
   });
 
   const cfg = await getConfig();

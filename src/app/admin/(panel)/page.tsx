@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { nombreTratamientos } from "@/lib/tratamientos";
 import { prisma } from "@/lib/db";
 import { aFechaUTC, fechaHoraLarga, fechaISO, fechaLarga, horaAR, sumarDias } from "@/lib/tiempo";
 import { getConfig } from "@/lib/config";
@@ -20,9 +21,9 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
     prisma.turno.count({ where: { inicio: { gte: aFechaUTC(hoy, "00:00"), lt: finHoy }, estado: { in: ["CONFIRMADO", "PENDIENTE_PAGO", "COMPLETADO"] } } }),
     prisma.turno.count({ where: { estado: "PENDIENTE_PAGO", expiraEn: { gt: ahora } } }),
     prisma.turno.count({ where: { inicio: { gte: ahora, lt: aFechaUTC(sumarDias(hoy, 8), "00:00") }, OR: [{ estado: "CONFIRMADO" }, { estado: "PENDIENTE_PAGO", expiraEn: { gt: ahora } }] } }),
-    prisma.turno.groupBy({
+    prisma.turnoTratamiento.groupBy({
       by: ["servicioId"],
-      where: { createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) }, estado: { not: "CANCELADO" } },
+      where: { turno: { createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) }, estado: { not: "CANCELADO" } } },
       _count: { _all: true },
       orderBy: { _count: { servicioId: "desc" } },
       take: 1,
@@ -50,7 +51,7 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
       inicio: { gte: aFechaUTC(desde, "00:00"), lt: aFechaUTC(sumarDias(desde, 7), "00:00") },
       OR: [{ estado: { not: "PENDIENTE_PAGO" } }, { expiraEn: { gt: ahora } }],
     },
-    include: { clienta: true, servicio: true },
+    include: { clienta: true, servicio: true, tratamientos: { orderBy: { orden: "asc" as const } } },
     orderBy: { inicio: "asc" },
   });
 
@@ -129,7 +130,7 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
                       <div className="min-w-48 flex-1">
                         <Link href={`/admin/clientas/${t.clientaId}`} className="font-medium hover:underline">{t.clienta.nombre}</Link>
                         <p className="text-sm text-[#6b635b]">
-                          {t.servicio.nombre} · {formatPrecio(t.precio)}
+                          {nombreTratamientos(t)} · {formatPrecio(t.precio)}
                           {t.montoSena > 0 && t.estado !== "PENDIENTE_PAGO" && ` · seña ${formatPrecio(t.montoSena)} recibida`}
                           {t.montoGiftCard > 0 && ` · gift card ${formatPrecio(t.montoGiftCard)}`}
                         </p>

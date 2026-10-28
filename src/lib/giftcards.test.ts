@@ -199,12 +199,26 @@ d("circuito de gift cards", async () => {
     expect(await prisma.turno.count({ where: { giftCardId: gc.id } })).toBe(1);
   });
 
+  it("en un turno con varios tratamientos: la de tratamiento cubre ese, la de monto hasta su saldo", async () => {
+    const deTratamiento = await activa({ servicioId: corporal });
+    expect(await g.consultarGiftCard(deTratamiento.codigo, [facial, corporal])).toMatchObject({ cubre: 24000, resta: 47000 });
+    const r = await t.crearReserva(reserva({ servicioIds: [facial, corporal], giftCard: deTratamiento.codigo }));
+    const turno = await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } });
+    expect(turno.montoGiftCard).toBe(24000);
+    expect(turno.estado).toBe("CONFIRMADO");
+
+    const deMonto = await activa();
+    const r2 = await t.crearReserva(reserva({ servicioIds: [facial, corporal], hora: "14:00", giftCard: deMonto.codigo }));
+    expect((await prisma.turno.findUniqueOrThrow({ where: { id: r2.turnoId } })).montoGiftCard).toBe(50000);
+    expect((await prisma.giftCard.findUniqueOrThrow({ where: { id: deMonto.id } })).estado).toBe("USADA");
+  });
+
   it("consultar muestra cuánto cubre y cuánto queda por pagar", async () => {
     const gc = await activa();
-    const c = await g.consultarGiftCard(gc.codigo, facial);
+    const c = await g.consultarGiftCard(gc.codigo, [facial]);
     expect(c).toMatchObject({ codigo: gc.codigo, para: "Sofía", cubre: 47000, resta: 0 });
     await prisma.giftCard.update({ where: { id: gc.id }, data: { saldo: 20000 } });
-    expect(await g.consultarGiftCard(gc.codigo, facial)).toMatchObject({ cubre: 20000, resta: 27000 });
+    expect(await g.consultarGiftCard(gc.codigo, [facial])).toMatchObject({ cubre: 20000, resta: 27000 });
   });
 
   it("venta en persona: queda activa en el momento", async () => {

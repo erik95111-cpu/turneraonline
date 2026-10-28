@@ -1,10 +1,11 @@
-import type { Administrador, Clienta, Configuracion, GiftCard, Servicio, Turno } from "@prisma/client";
+import type { Administrador, Clienta, Configuracion, GiftCard, Servicio, Turno, TurnoTratamiento } from "@prisma/client";
+import { duracionTurnoMin, nombreTratamientos } from "./tratamientos";
 import { formatDuracion, formatPrecio, linkWhatsapp } from "./formato";
 import { fechaHoraLarga } from "./tiempo";
 import { siteUrl } from "./config";
 import type { Mail } from "./email";
 
-type TurnoCompleto = Turno & { clienta: Clienta; servicio: Servicio; giftCard?: GiftCard | null };
+type TurnoCompleto = Turno & { clienta: Clienta; servicio: Servicio; giftCard?: GiftCard | null; tratamientos?: TurnoTratamiento[] };
 type GiftCardCompleta = GiftCard & { servicio: Servicio | null };
 
 const esc = (s: string) =>
@@ -30,9 +31,9 @@ function detalle(t: TurnoCompleto): string {
   const fila = (k: string, v: string) =>
     `<tr><td style="padding:6px 0;color:#888;font:14px Arial,sans-serif;width:120px">${k}</td><td style="padding:6px 0;font:15px Arial,sans-serif">${v}</td></tr>`;
   return `<table cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0;border-top:1px solid #eee;border-bottom:1px solid #eee">
-${fila("Tratamiento", esc(t.servicio.nombre))}
+${fila((t.tratamientos?.length ?? 0) > 1 ? "Tratamientos" : "Tratamiento", esc(nombreTratamientos(t)))}
 ${fila("Fecha", esc(fechaHoraLarga(t.inicio)))}
-${fila("Duración", formatDuracion(t.servicio.duracionMin))}
+${fila("Duración", formatDuracion(duracionTurnoMin(t)))}
 ${fila("Precio", formatPrecio(t.precio))}
 ${t.montoSena ? fila(t.estado === "PENDIENTE_PAGO" ? "Seña a abonar" : "Seña abonada", formatPrecio(t.montoSena)) : ""}
 ${t.giftCard ? fila("Gift card", `${esc(t.giftCard.codigo)} · cubre ${formatPrecio(t.montoGiftCard)}`) : ""}
@@ -50,9 +51,9 @@ function p(texto: string): string {
 
 function textoPlano(t: TurnoCompleto): string {
   return [
-    `Tratamiento: ${t.servicio.nombre}`,
+    `Tratamiento: ${nombreTratamientos(t)}`,
     `Fecha: ${fechaHoraLarga(t.inicio)}`,
-    `Duración: ${formatDuracion(t.servicio.duracionMin)}`,
+    `Duración: ${formatDuracion(duracionTurnoMin(t))}`,
     `Precio: ${formatPrecio(t.precio)}`,
     t.montoSena ? `${t.estado === "PENDIENTE_PAGO" ? "Seña a abonar" : "Seña abonada"}: ${formatPrecio(t.montoSena)}` : "",
     t.giftCard ? `Gift card: ${t.giftCard.codigo} (cubre ${formatPrecio(t.montoGiftCard)})` : "",
@@ -73,7 +74,7 @@ export function archivoIcs(cfg: Configuracion, t: TurnoCompleto): string {
     `DTSTAMP:${f(new Date())}`,
     `DTSTART:${f(t.inicio)}`,
     `DTEND:${f(t.fin)}`,
-    `SUMMARY:${t.servicio.nombre} - ${cfg.nombreNegocio}`,
+    `SUMMARY:${nombreTratamientos(t)} - ${cfg.nombreNegocio}`,
     cfg.direccion ? `LOCATION:${cfg.direccion}` : "",
     `DESCRIPTION:Ver o cancelar: ${linkTurno(t)}`,
     "END:VEVENT", "END:VCALENDAR",
@@ -91,7 +92,7 @@ ${boton(linkTurno(t), "Ver o cancelar mi turno")}
 ${cfg.politicaCancelacion ? `<p style="font:12px/1.5 Arial,sans-serif;color:#888">${esc(cfg.politicaCancelacion)}</p>` : ""}`);
   return {
     to: t.clienta.email,
-    subject: `Turno confirmado · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
+    subject: `Turno confirmado · ${nombreTratamientos(t)} · ${fechaHoraLarga(t.inicio)}`,
     html,
     text: `Hola ${t.clienta.nombre}, tu turno está confirmado.\n\n${textoPlano(t)}\n\nVer o cancelar: ${linkTurno(t)}`,
     attachments: [{ filename: "turno.ics", content: archivoIcs(cfg, t), contentType: "text/calendar" }],
@@ -108,7 +109,7 @@ ${t.notasClienta ? p(`<strong>Comentario:</strong> ${esc(t.notasClienta)}`) : ""
 ${boton(`${siteUrl()}/admin`, "Abrir la agenda")}`);
   return {
     to: cfg.emailProfesional,
-    subject: `Nuevo turno: ${t.clienta.nombre} · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
+    subject: `Nuevo turno: ${t.clienta.nombre} · ${nombreTratamientos(t)} · ${fechaHoraLarga(t.inicio)}`,
     html,
     text: `Nuevo turno de ${t.clienta.nombre} (${t.clienta.email}, ${t.clienta.telefono})\n\n${textoPlano(t)}\n\nComentario: ${t.notasClienta || "-"}`,
   };
@@ -123,7 +124,7 @@ ${detalle(t)}
 ${para === "clienta" ? boton(`${siteUrl()}/reservar`, "Reservar otro turno") : ""}`);
   return {
     to: para === "clienta" ? t.clienta.email : cfg.emailProfesional,
-    subject: `Turno cancelado · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
+    subject: `Turno cancelado · ${nombreTratamientos(t)} · ${fechaHoraLarga(t.inicio)}`,
     html,
     text: `Turno cancelado (${t.clienta.nombre})\n\n${textoPlano(t)}`,
   };
@@ -137,7 +138,7 @@ ${cfg.direccion ? p(`📍 ${esc(cfg.direccion)}`) : ""}
 ${boton(linkTurno(t), "Ver o cancelar mi turno")}`);
   return {
     to: t.clienta.email,
-    subject: `Recordatorio · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
+    subject: `Recordatorio · ${nombreTratamientos(t)} · ${fechaHoraLarga(t.inicio)}`,
     html,
     text: `Recordatorio de tu turno\n\n${textoPlano(t)}\n\nVer o cancelar: ${linkTurno(t)}`,
   };
@@ -145,7 +146,7 @@ ${boton(linkTurno(t), "Ver o cancelar mi turno")}`);
 
 /** Mensaje con el que la clienta abre el chat de WhatsApp para abonar la seña */
 export function mensajeSena(t: TurnoCompleto): string {
-  return `Hola! Reservé un turno y quiero abonar la seña de ${formatPrecio(t.montoSena)}:\n${t.servicio.nombre} - ${fechaHoraLarga(t.inicio)}\nA nombre de: ${t.clienta.nombre}`;
+  return `Hola! Reservé un turno y quiero abonar la seña de ${formatPrecio(t.montoSena)}:\n${nombreTratamientos(t)} - ${fechaHoraLarga(t.inicio)}\nA nombre de: ${t.clienta.nombre}`;
 }
 
 export function mailReservaPendienteClienta(cfg: Configuracion, t: TurnoCompleto): Mail {
@@ -160,7 +161,7 @@ ${wa ? boton(wa, "Abonar la seña por WhatsApp") : ""}
 ${p(`<a href="${linkTurno(t)}" style="color:#8a6d3b">Ver mi reserva</a>`)}`);
   return {
     to: t.clienta.email,
-    subject: `Reserva pendiente de seña · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
+    subject: `Reserva pendiente de seña · ${nombreTratamientos(t)} · ${fechaHoraLarga(t.inicio)}`,
     html,
     text: [
       `Hola ${t.clienta.nombre}, te guardamos este horario. Para confirmarlo, escribinos por WhatsApp para abonar la seña de ${formatPrecio(t.montoSena)}.`,
@@ -185,7 +186,7 @@ ${p("Cuando cobres la seña, entrá al panel y tocá <strong>“Seña recibida�
 ${boton(`${siteUrl()}/admin`, "Abrir la agenda")}`);
   return {
     to: cfg.emailProfesional,
-    subject: `Nueva reserva (esperando seña): ${t.clienta.nombre} · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
+    subject: `Nueva reserva (esperando seña): ${t.clienta.nombre} · ${nombreTratamientos(t)} · ${fechaHoraLarga(t.inicio)}`,
     html,
     text: `Nueva reserva de ${t.clienta.nombre} (${t.clienta.email}, ${t.clienta.telefono}) esperando la seña (te va a escribir por WhatsApp).\n\n${textoPlano(t)}\n\nCuando cobres la seña, confirmala desde el panel: ${siteUrl()}/admin`,
   };

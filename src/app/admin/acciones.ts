@@ -90,7 +90,10 @@ export async function eliminarServicio(fd: FormData) {
   await requireAdmin();
   const id = txt(fd, "id");
   // Con turnos o gift cards lo desactivamos para no perder el historial
-  const usados = (await prisma.turno.count({ where: { servicioId: id } })) + (await prisma.giftCard.count({ where: { servicioId: id } }));
+  const usados =
+    (await prisma.turno.count({ where: { servicioId: id } })) +
+    (await prisma.turnoTratamiento.count({ where: { servicioId: id } })) +
+    (await prisma.giftCard.count({ where: { servicioId: id } }));
   // Si ya tiene turnos lo desactivamos para no perder el historial
   if (usados) await prisma.servicio.update({ where: { id }, data: { activo: false } });
   else await prisma.servicio.delete({ where: { id } });

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { nombreTratamientos } from "@/lib/tratamientos";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { fechaHoraLarga } from "@/lib/tiempo";
@@ -10,7 +11,7 @@ export default async function FichaClienta({ params }: { params: Promise<{ id: s
   const { id } = await params;
   const c = await prisma.clienta.findUnique({
     where: { id },
-    include: { turnos: { include: { servicio: true }, orderBy: { inicio: "desc" } } },
+    include: { turnos: { include: { servicio: true, tratamientos: { orderBy: { orden: "asc" as const } } }, orderBy: { inicio: "desc" } } },
   });
   if (!c) notFound();
   const realizados = c.turnos.filter((t) => t.estado === "COMPLETADO");
@@ -52,7 +53,7 @@ export default async function FichaClienta({ params }: { params: Promise<{ id: s
             {c.turnos.map((t) => (
               <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
                 <div>
-                  <p className="font-medium">{t.servicio.nombre}</p>
+                  <p className="font-medium">{nombreTratamientos(t)}</p>
                   <p className="text-[#6b635b] first-letter:uppercase">{fechaHoraLarga(t.inicio)} · {formatPrecio(t.precio)}</p>
                   {t.notasClienta && <p className="mt-1 text-xs text-[#8b8279] italic">“{t.notasClienta}”</p>}
                 </div>

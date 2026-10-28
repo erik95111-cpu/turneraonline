@@ -6,6 +6,7 @@ import { Calendario } from "./Calendario";
 import { formatDuracion, formatPrecio } from "@/lib/formato";
 import { calcularSena } from "@/lib/sena";
 import { DIAS, MESES } from "@/lib/dias";
+import { MAX_TRATAMIENTOS } from "@/lib/tratamientos";
 import type { ResultadoReserva } from "@/app/actions/reservas";
 
 export interface ServicioReserva {
@@ -36,7 +37,7 @@ type EstadoGift = { ok: true; codigo: string; para: string; cubre: number; resta
 
 type NumeroPaso = 1 | 2 | 3 | 4;
 const PASOS: { n: NumeroPaso; titulo: string }[] = [
-  { n: 1, titulo: "Tratamiento" },
+  { n: 1, titulo: "Tratamientos" },
   { n: 2, titulo: "Día y horario" },
   { n: 3, titulo: "Tus datos" },
   { n: 4, titulo: "Confirmar" },
@@ -57,8 +58,9 @@ const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 export function Reserva(p: Props) {
   const panel = p.tema === "claro";
   const [paso, setPaso] = useState<NumeroPaso>(1);
-  const [servicioId, setServicioId] = useState<string | null>(
-    p.servicios.some((s) => s.id === p.servicioInicial) ? p.servicioInicial! : null,
+  // Se pueden elegir varios tratamientos: se hacen seguidos y se suman tiempo y precio
+  const [servicioIds, setServicioIds] = useState<string[]>(
+    p.servicios.some((s) => s.id === p.servicioInicial) ? [p.servicioInicial!] : [],
   );
   const [mes, setMes] = useState(() => {
     const [y, m] = p.desde.split("-").map(Number);
@@ -80,7 +82,12 @@ export function Reserva(p: Props) {
   const saltoMes = useRef(false);
   const tarjetaRef = useRef<HTMLDivElement>(null);
 
-  const servicio = p.servicios.find((s) => s.id === servicioId) ?? null;
+  const elegidos = servicioIds.map((id) => p.servicios.find((s) => s.id === id)).filter((s): s is ServicioReserva => Boolean(s));
+  const total = { precio: elegidos.reduce((a, s) => a + s.precio, 0), duracion: elegidos.reduce((a, s) => a + s.duracionMin, 0) };
+  const nombres = elegidos.map((s) => s.nombre).join(" + ");
+  /** Clave para pedir disponibilidad: "id1,id2" (cambia si cambia la selección) */
+  const servicioId = servicioIds.join(",") || null;
+  const servicio = elegidos.length ? { id: servicioId!, nombre: nombres, precio: total.precio, duracionMin: total.duracion } : null;
   const giftOk = gift?.ok ? gift : null;
   // Con gift card no se pide seña: la tarjeta ya está paga
   const montoSena = servicio && p.sena.activa && !giftOk ? calcularSena(servicio.precio, p.sena.tipo, p.sena.valor) : 0;
@@ -88,10 +95,6 @@ export function Reserva(p: Props) {
   const extra = panel ? "&panel=1" : "";
   const mesTexto = `${mes.y}-${String(mes.m + 1).padStart(2, "0")}`;
 
-  // Si entran con un tratamiento elegido desde la web, arrancan en el paso 2
-  useEffect(() => {
-    if (servicioId) setPaso(2);
-  }, []); // sólo al montar
 
   // Disponibilidad del mes (colores del calendario)
   useEffect(() => {
@@ -184,20 +187,17 @@ export function Reserva(p: Props) {
     irA(4);
   }
 
-  function elegirServicio(id: string) {
-    if (id !== servicioId) {
-      setServicioId(id);
-      setFecha(null);
-      saltoMes.current = false;
-    }
-    setTimeout(() => irA(2), 150);
+  function alternarServicio(id: string) {
+    setServicioIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < MAX_TRATAMIENTOS ? [...ids, id] : ids));
+    setFecha(null);
+    saltoMes.current = false;
   }
 
   function enviar() {
     if (!servicio || !fecha || !hora) return;
     setError(null);
     startTransition(async () => {
-      const r = await p.accion({ servicioId: servicio.id, fecha, hora, ...form, giftCard: giftOk?.codigo ?? "" }, trampa);
+      const r = await p.accion({ servicioIds, fecha, hora, ...form, giftCard: giftOk?.codigo ?? "" }, trampa);
       if (r.ok) {
         window.location.href = r.url;
         return;
@@ -216,7 +216,7 @@ export function Reserva(p: Props) {
   }
 
   const resumen: Record<NumeroPaso, string> = {
-    1: servicio?.nombre ?? "",
+    1: nombres,
     2: fecha && hora ? `${mayuscula(fechaTexto(fecha, true))} · ${hora} hs` : "",
     3: paso > 3 ? form.nombre : "",
     4: "",
@@ -293,20 +293,26 @@ export function Reserva(p: Props) {
           {/* Paso 1: tratamiento */}
           {paso === 1 && (
             <div className="space-y-5">
+              <p className="-mt-3 text-sm text-piedra">Podés elegir más de uno: se hacen seguidos en el mismo turno y se suman el tiempo y el precio.</p>
               {categorias.map((cat) => (
                 <div key={cat}>
                   {categorias.length > 1 && <p className="mb-2 text-xs tracking-[0.2em] text-piedra uppercase">{cat}</p>}
                   <div className="grid gap-2 sm:grid-cols-2">
                     {p.servicios.filter((s) => s.categoria === cat).map((s) => {
-                      const sel = s.id === servicioId;
+                      const sel = servicioIds.includes(s.id);
+                      const lleno = !sel && servicioIds.length >= MAX_TRATAMIENTOS;
                       return (
                         <button
                           key={s.id}
                           type="button"
-                          onClick={() => elegirServicio(s.id)}
+                          onClick={() => alternarServicio(s.id)}
                           aria-pressed={sel}
-                          className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${sel ? "border-gold bg-gold/10" : "border-linea hover:border-gold/60"}`}
+                          disabled={lleno}
+                          className={`relative rounded-2xl border p-4 pr-11 text-left transition hover:-translate-y-0.5 disabled:opacity-40 ${sel ? "border-gold bg-gold/10" : "border-linea hover:border-gold/60"}`}
                         >
+                          <span aria-hidden="true" className={`absolute top-4 right-4 flex h-5 w-5 items-center justify-center rounded-full border text-[0.7rem] ${sel ? "border-gold bg-gold font-bold text-[#0b0a0c]" : "border-linea"}`}>
+                            {sel ? "✓" : ""}
+                          </span>
                           <p className="font-serif text-lg leading-snug text-cream">{s.nombre}</p>
                           <p className="mt-1 text-sm text-piedra">
                             {formatDuracion(s.duracionMin)} · <span className="text-gold-light">{formatPrecio(s.precio)}</span>
@@ -425,10 +431,10 @@ export function Reserva(p: Props) {
             <div>
               <dl className="divide-y divide-linea rounded-2xl border border-linea">
                 {[
-                  ["Tratamiento", servicio.nombre],
+                  [elegidos.length > 1 ? "Tratamientos" : "Tratamiento", nombres],
                   ["Día", `${mayuscula(fechaTexto(fecha))}, ${hora} hs`],
-                  ["Duración", formatDuracion(servicio.duracionMin)],
-                  ["Precio", formatPrecio(servicio.precio)],
+                  ["Duración", formatDuracion(total.duracion)],
+                  [elegidos.length > 1 ? "Precio total" : "Precio", formatPrecio(total.precio)],
                   ["A nombre de", `${form.nombre} · ${form.email}`],
                   ...(montoSena > 0 ? [["Seña para reservar", `${formatPrecio(montoSena)} (se abona por WhatsApp)`]] : []),
                   ...(giftOk ? [["Gift card", `${giftOk.codigo} · cubre ${formatPrecio(giftOk.cubre)}`]] : []),
@@ -449,12 +455,21 @@ export function Reserva(p: Props) {
           )}
 
           {/* Navegación (el paso 1 avanza solo al elegir) */}
-          <div className={`mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-linea pt-5 ${paso === 1 ? "hidden" : ""}`}>
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-linea pt-5">
             {paso > 1 ? (
               <button type="button" onClick={() => irA((paso - 1) as NumeroPaso)} className="text-sm text-piedra hover:text-cream">
                 ← Atrás
               </button>
-            ) : <span />}
+            ) : (
+              <p className="text-sm text-piedra" aria-live="polite">
+                {elegidos.length
+                  ? <>{elegidos.length} {elegidos.length === 1 ? "tratamiento" : "tratamientos"} · {formatDuracion(total.duracion)} · <span className="text-gold-light">{formatPrecio(total.precio)}</span></>
+                  : "Elegí uno o más tratamientos"}
+              </p>
+            )}
+            {paso === 1 && (
+              <button type="button" disabled={!elegidos.length} onClick={() => irA(2)} className="btn-oro">Continuar →</button>
+            )}
             {paso === 2 && (
               <button type="button" disabled={!hora} onClick={() => irA(3)} className="btn-oro">Continuar →</button>
             )}
