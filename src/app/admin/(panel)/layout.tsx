@@ -14,6 +14,7 @@ const LINKS = [
   ["/admin/servicios", "Tratamientos"],
   ["/admin/horarios", "Horarios"],
   ["/admin/clientas", "Clientas"],
+  ["/admin/gift-cards", "Gift cards"],
   ["/admin/estadisticas", "Estadísticas"],
   ["/admin/configuracion", "Configuración"],
   ["/admin/usuarios", "Usuarios"],

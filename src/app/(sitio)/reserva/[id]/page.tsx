@@ -20,7 +20,7 @@ export default async function TurnoPage({ params, searchParams }: Props) {
   const { id } = await params;
   const { t: token, nuevo } = await searchParams;
 
-  const turno = await prisma.turno.findUnique({ where: { id }, include: { servicio: true, clienta: true } });
+  const turno = await prisma.turno.findUnique({ where: { id }, include: { servicio: true, clienta: true, giftCard: true } });
   if (!turno || !token || turno.token !== token) notFound();
 
   const cfg = await getConfig();
@@ -45,6 +45,8 @@ export default async function TurnoPage({ params, searchParams }: Props) {
     ["Duración", formatDuracion(turno.servicio.duracionMin)],
     ["Precio", formatPrecio(turno.precio)],
     ...(turno.montoSena ? [[pendiente ? "Seña a abonar" : "Seña", formatPrecio(turno.montoSena)] as [string, string]] : []),
+    ...(turno.giftCard ? [["Gift card", `${turno.giftCard.codigo} · cubre ${formatPrecio(turno.montoGiftCard)}`] as [string, string]] : []),
+    ...(turno.giftCard && turno.precio > turno.montoGiftCard ? [["A abonar en la sesión", formatPrecio(turno.precio - turno.montoGiftCard)] as [string, string]] : []),
     ...(cfg.direccion ? [["Dirección", cfg.direccion] as [string, string]] : []),
   ];
 

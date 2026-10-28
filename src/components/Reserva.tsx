@@ -28,7 +28,11 @@ interface Props {
   accion: (datos: unknown, honeypot?: string) => Promise<ResultadoReserva>;
   /** "claro" = panel de administración (sin límites de fecha, colores claros) */
   tema?: "oscuro" | "claro";
+  /** Código de gift card que viene en el link (?gift=) */
+  giftInicial?: string;
 }
+
+type EstadoGift = { ok: true; codigo: string; para: string; cubre: number; resta: number } | { ok: false; error: string };
 
 type NumeroPaso = 1 | 2 | 3 | 4;
 const PASOS: { n: NumeroPaso; titulo: string }[] = [
@@ -69,12 +73,17 @@ export function Reserva(p: Props) {
   const [recarga, setRecarga] = useState(0);
   const [form, setForm] = useState(VACIO);
   const [trampa, setTrampa] = useState("");
+  const [giftCodigo, setGiftCodigo] = useState(p.giftInicial ?? "");
+  const [gift, setGift] = useState<EstadoGift | null>(null);
+  const [validandoGift, setValidandoGift] = useState(false);
   const [enviando, startTransition] = useTransition();
   const saltoMes = useRef(false);
   const tarjetaRef = useRef<HTMLDivElement>(null);
 
   const servicio = p.servicios.find((s) => s.id === servicioId) ?? null;
-  const montoSena = servicio && p.sena.activa ? calcularSena(servicio.precio, p.sena.tipo, p.sena.valor) : 0;
+  const giftOk = gift?.ok ? gift : null;
+  // Con gift card no se pide seña: la tarjeta ya está paga
+  const montoSena = servicio && p.sena.activa && !giftOk ? calcularSena(servicio.precio, p.sena.tipo, p.sena.valor) : 0;
   const categorias = useMemo(() => [...new Set(p.servicios.map((s) => s.categoria))], [p.servicios]);
   const extra = panel ? "&panel=1" : "";
   const mesTexto = `${mes.y}-${String(mes.m + 1).padStart(2, "0")}`;
@@ -138,6 +147,43 @@ export function Reserva(p: Props) {
     });
   }
 
+  // La gift card se valida para un tratamiento: si cambia, hay que volver a validarla
+  useEffect(() => setGift(null), [servicioId]);
+
+  async function validarGift(): Promise<boolean> {
+    const codigo = giftCodigo.trim();
+    if (!codigo) {
+      setGift(null);
+      return true;
+    }
+    if (!servicioId) return false;
+    setValidandoGift(true);
+    try {
+      const r = await fetch(`/api/giftcard?codigo=${encodeURIComponent(codigo)}&servicio=${servicioId}`);
+      const d = (await r.json()) as EstadoGift;
+      setGift(d);
+      if (d.ok) setGiftCodigo(d.codigo);
+      return d.ok;
+    } catch {
+      setGift({ ok: false, error: "No pudimos validar el código. Probá de nuevo." });
+      return false;
+    } finally {
+      setValidandoGift(false);
+    }
+  }
+
+  // Si llegaron con el código en el link, lo validamos al llegar a "Tus datos"
+  useEffect(() => {
+    if (paso === 3 && giftCodigo && !gift) void validarGift();
+  }, [paso]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function continuarDatos(e: React.FormEvent) {
+    e.preventDefault();
+    const codigo = giftCodigo.trim();
+    if (codigo && !(giftOk && giftOk.codigo === codigo) && !(await validarGift())) return;
+    irA(4);
+  }
+
   function elegirServicio(id: string) {
     if (id !== servicioId) {
       setServicioId(id);
@@ -151,14 +197,17 @@ export function Reserva(p: Props) {
     if (!servicio || !fecha || !hora) return;
     setError(null);
     startTransition(async () => {
-      const r = await p.accion({ servicioId: servicio.id, fecha, hora, ...form }, trampa);
+      const r = await p.accion({ servicioId: servicio.id, fecha, hora, ...form, giftCard: giftOk?.codigo ?? "" }, trampa);
       if (r.ok) {
         window.location.href = r.url;
         return;
       }
       setError(r.error);
       // Si el horario se ocupó, volvemos a elegir horario (los datos cargados se conservan)
-      if (/horario/i.test(r.error)) {
+      if (/gift card/i.test(r.error)) {
+        setGift({ ok: false, error: r.error });
+        irA(3);
+      } else if (/horario/i.test(r.error)) {
         setRecarga((n) => n + 1);
         setHora(null);
         irA(2);
@@ -325,7 +374,7 @@ export function Reserva(p: Props) {
           {/* Paso 3: datos */}
           {paso === 3 && (
             <form
-              onSubmit={(e) => { e.preventDefault(); irA(4); }}
+              onSubmit={continuarDatos}
               className="grid gap-4 sm:grid-cols-2"
               id="form-datos"
             >
@@ -345,6 +394,27 @@ export function Reserva(p: Props) {
                 <label className="mb-1.5 block text-xs text-piedra" htmlFor="notas">Comentarios (opcional)</label>
                 <textarea id="notas" name="notas" rows={3} maxLength={500} placeholder="Alergias, consultas, si es tu primera vez…" className="campo" {...campoForm("notas")} />
               </div>
+              <div className="rounded-2xl border border-dashed border-gold/40 p-4 sm:col-span-2">
+                <label className="mb-1.5 block text-xs text-piedra" htmlFor="giftcard">¿Tenés una gift card? Ingresá el código (opcional)</label>
+                <div className="flex gap-2">
+                  <input
+                    id="giftcard" name="giftcard" autoComplete="off" placeholder="HS-XXXXXX" maxLength={20}
+                    className="campo uppercase tracking-[0.15em]"
+                    value={giftCodigo}
+                    onChange={(e) => { setGiftCodigo(e.target.value); setGift(null); }}
+                  />
+                  <button type="button" onClick={() => void validarGift()} disabled={!giftCodigo.trim() || validandoGift} className="btn-linea shrink-0 !px-5">
+                    {validandoGift ? "…" : "Aplicar"}
+                  </button>
+                </div>
+                {giftOk && (
+                  <p className="mt-2 text-sm text-gold-light" role="status">
+                    ✓ Gift card de {giftOk.para}: cubre {formatPrecio(giftOk.cubre)}
+                    {giftOk.resta > 0 ? `. El resto (${formatPrecio(giftOk.resta)}) se abona en la sesión.` : ". ¡No tenés que pagar nada más!"}
+                  </p>
+                )}
+                {gift && !gift.ok && <p className="mt-2 text-sm text-red-500" role="alert">{gift.error}</p>}
+              </div>
               {/* Campo trampa para bots: queda oculto para las personas */}
               <input name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" value={trampa} onChange={(e) => setTrampa(e.target.value)} />
             </form>
@@ -361,6 +431,8 @@ export function Reserva(p: Props) {
                   ["Precio", formatPrecio(servicio.precio)],
                   ["A nombre de", `${form.nombre} · ${form.email}`],
                   ...(montoSena > 0 ? [["Seña para reservar", `${formatPrecio(montoSena)} (se abona por WhatsApp)`]] : []),
+                  ...(giftOk ? [["Gift card", `${giftOk.codigo} · cubre ${formatPrecio(giftOk.cubre)}`]] : []),
+                  ...(giftOk && giftOk.resta > 0 ? [["A abonar en la sesión", formatPrecio(giftOk.resta)]] : []),
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between gap-4 px-4 py-3 text-sm">
                     <dt className="text-piedra">{k}</dt>

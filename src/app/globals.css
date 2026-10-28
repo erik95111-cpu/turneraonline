@@ -258,3 +258,48 @@ html[data-intro="no"] .intro { display: none; }
 @keyframes cortina-pulso { 50% { transform: scale(1.06); } }
 @keyframes cortina-entra { from { transform: translateX(-101%); } to { transform: none; } }
 @keyframes cortina-sale { from { transform: none; } to { transform: translateX(101%); } }
+
+/* ---------- Gift card “Oro pleno” ---------- */
+.gift { container-type: inline-size; width: 100%; max-width: 100%; }
+.gift-cara {
+  position: relative;
+  aspect-ratio: 1.6;
+  border-radius: 4.2cqw;
+  overflow: hidden;
+  padding: 7% 7.5%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6%;
+  color: #1a140c;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 3px),
+    linear-gradient(100deg, #8a6d3b, #e6cf9f 50%, #c9a96e);
+  box-shadow: 0 30px 60px -25px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.gift-cara::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 245, 220, 0.35) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: gift-brillo 6s ease-in-out 1s infinite;
+}
+.gift-centro { display: flex; align-items: center; gap: 6%; }
+.gift-logo { width: 30%; height: auto; border-radius: 50%; box-shadow: 0 0 0 0.9cqw rgba(26, 20, 12, 0.85); flex-shrink: 0; }
+.gift-rotulo { font-size: 2.5cqw; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; opacity: 0.75; }
+.gift-titulo { font-family: var(--font-serif); font-style: italic; font-size: 10cqw; line-height: 0.95; overflow-wrap: anywhere; }
+.gift-titulo:where(:not(:only-child)) { margin-top: 1.5cqw; }
+.gift-fila { display: flex; justify-content: space-between; align-items: flex-end; gap: 4%; }
+.gift-dato { font-family: var(--font-serif); font-size: 5cqw; line-height: 1.15; overflow-wrap: anywhere; }
+.gift-monto { font-family: var(--font-serif); font-weight: 600; font-size: 8.5cqw; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gift-codigo { position: absolute; right: 7.5%; top: 7%; font-size: 3.2cqw; font-weight: 600; letter-spacing: 0.22em; }
+@keyframes gift-brillo { 0% { transform: translateX(-120%); } 25%, 100% { transform: translateX(120%); } }
+@media (prefers-reduced-motion: reduce) { .gift-cara::after { animation: none; display: none; } }
+@media print {
+  header, footer, .no-imprimir { display: none !important; }
+  body { background: #fff !important; }
+  .gift-cara { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-shadow: none; }
+  .gift-cara::after { display: none; }
+}

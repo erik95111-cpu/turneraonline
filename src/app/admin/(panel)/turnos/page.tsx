@@ -101,6 +101,7 @@ export default async function Turnos({ searchParams }: { searchParams: Promise<F
               <p className="text-sm text-[#6b635b]">
                 {t.servicio.nombre} · {formatPrecio(t.precio)}
                 {t.montoSena > 0 && t.estado !== "PENDIENTE_PAGO" && t.estado !== "CANCELADO" && ` · seña ${formatPrecio(t.montoSena)} recibida`}
+                {t.montoGiftCard > 0 && ` · gift card ${formatPrecio(t.montoGiftCard)}`}
               </p>
             </div>
             <EstadoBadge estado={t.estado} />

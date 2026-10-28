@@ -7,6 +7,10 @@ import { calcularSlots } from "./slots";
 import { calcularSena, pideSena } from "./sena";
 import { aFechaUTC, diaSemana, fechaISO, sumarDias } from "./tiempo";
 import { enviarMail } from "./email";
+import { ErrorReserva } from "./errores";
+import { aplicarGiftCard, devolverGiftCard } from "./giftcards";
+
+export { ErrorReserva };
 import {
   mailCancelacion,
   mailConfirmacionClienta,
@@ -132,13 +136,14 @@ export const reservaSchema = z.object({
   email: z.string().trim().toLowerCase().email("Email inválido").max(120),
   telefono: z.string().trim().min(6, "Ingresá un teléfono válido").max(30),
   notas: z.string().trim().max(500).default(""),
+  /** Código de gift card (opcional) */
+  giftCard: z.string().trim().max(20).default(""),
 });
 
-export type DatosReserva = z.infer<typeof reservaSchema>;
+export type DatosReserva = z.input<typeof reservaSchema>;
 
-export class ErrorReserva extends Error {}
 
-const incluir = { clienta: true, servicio: true } as const;
+const incluir = { clienta: true, servicio: true, giftCard: true } as const;
 
 /**
  * Crea una reserva. Si hay seña configurada, el turno queda apartado hasta que
@@ -168,7 +173,9 @@ export async function crearReserva(
       });
 
       const inicio = aFechaUTC(datos.fecha, datos.hora);
-      const montoSena = cobrarSena ? calcularSena(servicio.precio, cfg.senaTipo, cfg.senaValor) : 0;
+      const gift = datos.giftCard ? await aplicarGiftCard(tx, datos.giftCard, servicio.id, servicio.precio) : null;
+      // Con gift card el turno queda confirmado directo: la tarjeta ya está paga
+      const montoSena = cobrarSena && !gift ? calcularSena(servicio.precio, cfg.senaTipo, cfg.senaValor) : 0;
       const pendiente = montoSena > 0;
       // El horario queda apartado hasta que llegue la seña (nunca más allá del turno)
       const limite = Math.min(Date.now() + Math.max(1, cfg.horasParaSena) * 3_600_000, inicio.getTime());
@@ -186,6 +193,8 @@ export async function crearReserva(
           notasClienta: datos.notas,
           creadoPorAdmin: Boolean(opciones.porAdmin),
           token: randomBytes(24).toString("base64url"),
+          giftCardId: gift?.id ?? null,
+          montoGiftCard: gift?.monto ?? 0,
         },
         include: incluir,
       });
@@ -247,12 +256,15 @@ export async function cancelarTurno(turnoId: string, por: "clienta" | "admin"): 
     }
   }
   const eraConfirmado = turno.estado === "CONFIRMADO";
-  // Condicional: si justo cambió de estado (ej: se confirmó el pago) no pisamos nada
-  const r = await prisma.turno.updateMany({
-    where: { id: turno.id, estado: turno.estado },
-    data: { estado: "CANCELADO" },
+  await prisma.$transaction(async (tx) => {
+    // Condicional: si justo cambió de estado (ej: se confirmó el pago) no pisamos nada
+    const r = await tx.turno.updateMany({
+      where: { id: turno.id, estado: turno.estado },
+      data: { estado: "CANCELADO" },
+    });
+    if (!r.count) throw new ErrorReserva("El turno cambió de estado. Recargá la página.");
+    if (turno.giftCardId) await devolverGiftCard(tx, turno.giftCardId, turno.montoGiftCard);
   });
-  if (!r.count) throw new ErrorReserva("El turno cambió de estado. Recargá la página.");
 
   if (eraConfirmado) {
     await Promise.all([

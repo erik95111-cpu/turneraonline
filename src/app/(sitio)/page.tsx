@@ -5,6 +5,7 @@ import { getConfig } from "@/lib/config";
 import { formatDuracion, formatPrecio } from "@/lib/formato";
 import { VideoPresentacion } from "@/components/VideoPresentacion";
 import { Intro } from "@/components/Intro";
+import { TarjetaRegalo } from "@/components/TarjetaRegalo";
 import { calcularSena, pideSena } from "@/lib/sena";
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ intro?: string }> }) {
@@ -148,6 +149,25 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ i
           </div>
         </div>
       </section>
+
+      {/* ─── Gift cards ─── */}
+      {cfg.giftcardsActivas && cfg.whatsapp && (
+        <section id="gift-cards" className="scroll-mt-20 border-t border-linea">
+          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-20 sm:px-6 md:grid-cols-2">
+            <div className="mx-auto w-full max-w-md -rotate-3 md:order-2">
+              <TarjetaRegalo titulo="Bienestar" monto={formatPrecio(cfg.giftcardMonto)} para="Alguien especial" de="Vos" />
+            </div>
+            <div className="text-center md:text-left">
+              <p className="eyebrow">Gift cards</p>
+              <h2 className="mt-4 font-serif text-4xl sm:text-5xl">Regalá <em className="texto-oro">bienestar</em></h2>
+              <p className="mx-auto mt-4 max-w-md text-piedra md:mx-0">
+                Un monto de {formatPrecio(cfg.giftcardMonto)} o el tratamiento que elijas. Se paga por WhatsApp y llega por mail, lista para regalar.
+              </p>
+              <Link href="/gift-cards" className="btn-oro mt-8">Regalar una gift card</Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ─── Sobre mí ─── */}
       {cfg.sobreMi && (

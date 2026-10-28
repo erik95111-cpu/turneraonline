@@ -128,6 +128,7 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
                         <p className="text-sm text-[#6b635b]">
                           {t.servicio.nombre} · {formatPrecio(t.precio)}
                           {t.montoSena > 0 && t.estado !== "PENDIENTE_PAGO" && ` · seña ${formatPrecio(t.montoSena)} recibida`}
+                          {t.montoGiftCard > 0 && ` · gift card ${formatPrecio(t.montoGiftCard)}`}
                         </p>
                         {t.notasClienta && <p className="mt-1 text-xs text-[#8b8279] italic">“{t.notasClienta}”</p>}
                         {t.estado === "PENDIENTE_PAGO" && t.expiraEn && (

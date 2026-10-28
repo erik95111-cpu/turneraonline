@@ -9,6 +9,7 @@ import { USUARIO_MAESTRO, cerrarSesion, crearSesion, requireAdmin } from "@/lib/
 import { hashPassword, verificarPassword } from "@/lib/passwords";
 import { ErrorReserva, cancelarTurno, confirmarSena, crearReserva, reservaSchema } from "@/lib/turnos";
 import { probarEnvio } from "@/lib/email";
+import { activarGiftCard, anularGiftCard, crearGiftCard, giftCardSchema } from "@/lib/giftcards";
 import { aFechaUTC } from "@/lib/tiempo";
 import type { ResultadoReserva } from "@/app/actions/reservas";
 
@@ -88,7 +89,8 @@ export async function guardarServicio(fd: FormData) {
 export async function eliminarServicio(fd: FormData) {
   await requireAdmin();
   const id = txt(fd, "id");
-  const usados = await prisma.turno.count({ where: { servicioId: id } });
+  // Con turnos o gift cards lo desactivamos para no perder el historial
+  const usados = (await prisma.turno.count({ where: { servicioId: id } })) + (await prisma.giftCard.count({ where: { servicioId: id } }));
   // Si ya tiene turnos lo desactivamos para no perder el historial
   if (usados) await prisma.servicio.update({ where: { id }, data: { activo: false } });
   else await prisma.servicio.delete({ where: { id } });
@@ -173,6 +175,9 @@ export async function guardarConfiguracion(fd: FormData) {
     horasParaSena: Math.min(168, Math.max(1, num(fd, "horasParaSena"))),
     horasParaCancelar: num(fd, "horasParaCancelar"),
     politicaCancelacion: txt(fd, "politicaCancelacion"),
+    giftcardsActivas: fd.get("giftcardsActivas") === "on",
+    giftcardMonto: Math.max(1000, num(fd, "giftcardMonto")),
+    giftcardMeses: Math.min(24, Math.max(1, num(fd, "giftcardMeses"))),
   };
   await prisma.configuracion.upsert({ where: { id: 1 }, update: data, create: { id: 1, ...data } });
   refrescar();
@@ -257,4 +262,50 @@ export async function enviarMailPrueba(fd: FormData) {
     ? await probarEnvio(para)
     : { ok: false, mensaje: "Escribí un email válido para la prueba" };
   redirect(`/admin/configuracion?${new URLSearchParams({ [r.ok ? "mailok" : "mailerror"]: r.mensaje })}#mails`);
+}
+
+// ─── Gift cards ────────────────────────────────────────────
+
+function volverGift(q: Record<string, string>): never {
+  redirect(`/admin/gift-cards?${new URLSearchParams(q)}`);
+}
+
+export async function cambiarEstadoGiftCard(fd: FormData) {
+  await requireAdmin();
+  const id = txt(fd, "id");
+  const accion = txt(fd, "accion");
+  try {
+    if (accion === "PAGADA") await activarGiftCard(id);
+    else if (accion === "ANULAR") await anularGiftCard(id);
+  } catch (err) {
+    if (!(err instanceof ErrorReserva)) throw err;
+    volverGift({ error: err.message });
+  }
+  revalidatePath("/admin/gift-cards");
+  volverGift({ ok: accion === "PAGADA" ? "Gift card activada. Se le mandó por mail a quien la compró." : "Gift card anulada." });
+}
+
+/** Venta en persona: queda activa en el momento */
+export async function venderGiftCard(fd: FormData) {
+  await requireAdmin();
+  const r = giftCardSchema.extend({
+    email: giftCardSchema.shape.email.or(z.literal("")),
+    telefono: z.string().trim().max(30).default(""),
+  }).safeParse({
+    servicioId: txt(fd, "servicioId"),
+    para: txt(fd, "para"),
+    de: txt(fd, "de"),
+    mensaje: txt(fd, "mensaje"),
+    email: txt(fd, "email"),
+    telefono: txt(fd, "telefono"),
+  });
+  if (!r.success) volverGift({ error: r.error.issues[0]?.message ?? "Datos inválidos" });
+  let codigo = "";
+  try {
+    codigo = (await crearGiftCard(r.data, { porAdmin: true })).codigo;
+  } catch (err) {
+    if (!(err instanceof ErrorReserva)) throw err;
+    volverGift({ error: err.message });
+  }
+  volverGift({ ok: `Gift card ${codigo} creada y activa.${r.data.email ? " Se mandó por mail." : ""}`, q: codigo });
 }

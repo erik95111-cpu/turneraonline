@@ -23,6 +23,7 @@ export default async function SitioLayout({ children }: { children: React.ReactN
             <Link href="/#tratamientos" className="hover:text-gold-light">Tratamientos</Link>
             <Link href="/#como-funciona" className="hover:text-gold-light">Cómo funciona</Link>
             {cfg.videoUrl && <Link href="/#presentacion" className="hover:text-gold-light">Presentación</Link>}
+            {cfg.giftcardsActivas && <Link href="/gift-cards" className="hover:text-gold-light">Gift cards</Link>}
             <Link href="/#contacto" className="hover:text-gold-light">Contacto</Link>
           </nav>
           <div className="flex items-center gap-2">
@@ -60,7 +61,10 @@ export default async function SitioLayout({ children }: { children: React.ReactN
             <p className="eyebrow mb-3">Días de atención</p>
             {horarios.map((h) => <p key={h}>{h}</p>)}
             <p className="mt-3 mb-5">Reservá online y recibí la confirmación por mail.</p>
-            <Link href="/reservar" className="btn-linea">Reservar turno</Link>
+            <div className="flex flex-wrap gap-2 md:justify-end">
+              <Link href="/reservar" className="btn-linea">Reservar turno</Link>
+              {cfg.giftcardsActivas && <Link href="/gift-cards" className="btn-linea">Gift cards</Link>}
+            </div>
           </div>
         </div>
         <p className="border-t border-linea py-5 text-center text-xs text-piedra/60">

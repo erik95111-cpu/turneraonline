@@ -5,10 +5,10 @@ import { useEffect, useState } from "react";
 const SEGUNDOS = 3;
 
 /**
- * Botón para abonar la seña por WhatsApp. Si la clienta acaba de reservar
+ * Botón para abonar por WhatsApp (seña o gift card). Si recién reservó o pidió
  * (autoAbrir), cuenta 3 segundos y abre WhatsApp sola, una sola vez por turno.
  */
-export function IrAWhatsapp({ href, turnoId, autoAbrir }: { href: string; turnoId: string; autoAbrir: boolean }) {
+export function IrAWhatsapp({ href, turnoId, autoAbrir, texto = "Abonar la seña por WhatsApp" }: { href: string; turnoId: string; autoAbrir: boolean; texto?: string }) {
   const [restan, setRestan] = useState<number | null>(null);
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export function IrAWhatsapp({ href, turnoId, autoAbrir }: { href: string; turnoI
   return (
     <div className="space-y-2 text-center">
       <a href={href} target="_blank" rel="noopener" className="btn-oro w-full" onClick={() => setRestan(null)}>
-        Abonar la seña por WhatsApp
+        {texto}
       </a>
       {restan !== null && restan > 0 && (
         <p className="text-xs text-piedra" role="status">

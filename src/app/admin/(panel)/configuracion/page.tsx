@@ -86,6 +86,18 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
         </section>
 
         <section className="card grid gap-4 p-5 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <h2 className="font-semibold">Gift cards</h2>
+            <p className="text-sm text-[#6b635b]">Se piden en la web y se pagan por WhatsApp. Cuando cobrás, en <strong>Gift cards</strong> tocás “Pago recibido” y se manda la tarjeta por mail.</p>
+          </div>
+          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+            <input type="checkbox" name="giftcardsActivas" defaultChecked={c.giftcardsActivas} /> Vender gift cards en la web
+          </label>
+          <Campo name="giftcardMonto" label="Valor de la gift card de monto ($)" type="number" />
+          <Campo name="giftcardMeses" label="Validez (meses desde que se activa)" type="number" />
+        </section>
+
+        <section className="card grid gap-4 p-5 sm:grid-cols-2">
           <h2 className="font-semibold sm:col-span-2">Reglas de reserva</h2>
           <Campo name="intervaloMin" label="Ofrecer horarios cada (minutos)" type="number" />
           <Campo name="anticipacionMinHoras" label="Anticipación mínima (horas)" type="number" />

@@ -15,6 +15,7 @@ reciben la confirmación por **mail** (la profesional también recibe un aviso).
 - Mail de confirmación a la clienta (con archivo para agregar al calendario) y aviso a la profesional.
 - Link en el mail para ver o **cancelar** el turno (hasta X horas antes).
 - Recordatorio automático por mail el día anterior.
+- **Gift cards** (`/gift-cards`): de monto ($50.000, con saldo) o de un tratamiento. Se pagan por WhatsApp; al marcar “Pago recibido” en el panel se mandan por mail con su código (vencen a los 2 meses). Al reservar se ingresa el código y el turno queda confirmado sin seña. Si se cancela el turno, la gift card recupera el saldo.
 
 **Panel (`/admin`)**
 - Ingreso con **email y contraseña** por persona (la profesional, una secretaria…). Pantalla **Usuarios** para crear, desactivar o cambiar contraseñas, y **Mi cuenta** para cambiar la propia.
@@ -25,6 +26,7 @@ reciben la confirmación por **mail** (la profesional también recibe un aviso).
 - Tratamientos: alta, edición, precios, duración, ocultar.
 - Horarios de atención (varias franjas por día) y días bloqueados (vacaciones, feriados).
 - Clientas: ficha con tipo de piel, alergias, notas privadas e historial.
+- Gift cards: pedidos, “Pago recibido”, anular, saldo, en qué turno se usó y venta en persona.
 - Estadísticas mensuales: ingresos, turnos, ausencias, tratamientos más pedidos.
 - Configuración: datos de contacto, video, seña, reglas de reserva, política de cancelación.
 

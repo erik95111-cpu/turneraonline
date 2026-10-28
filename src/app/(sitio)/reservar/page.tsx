@@ -8,8 +8,8 @@ import { reservarTurno } from "@/app/actions/reservas";
 
 export const metadata: Metadata = { title: "Reservar turno" };
 
-export default async function ReservarPage({ searchParams }: { searchParams: Promise<{ servicio?: string }> }) {
-  const { servicio } = await searchParams;
+export default async function ReservarPage({ searchParams }: { searchParams: Promise<{ servicio?: string; gift?: string }> }) {
+  const { servicio, gift } = await searchParams;
   const [cfg, servicios, franjas] = await Promise.all([
     getConfig(),
     prisma.servicio.findMany({
@@ -35,6 +35,7 @@ export default async function ReservarPage({ searchParams }: { searchParams: Pro
           sena={{ tipo: cfg.senaTipo, valor: cfg.senaValor, activa: pideSena(cfg) }}
           politica={cfg.politicaCancelacion}
           accion={reservarTurno}
+          giftInicial={gift?.slice(0, 20)}
         />
       )}
     </div>

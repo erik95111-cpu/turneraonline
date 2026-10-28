@@ -35,6 +35,7 @@ model Servicio {
   activo      Boolean  @default(true)
   orden       Int      @default(0)
   turnos      Turno[]
+  giftCards   GiftCard[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -101,10 +102,52 @@ model Turno {
   token               String      @unique @default(cuid())
   recordatorioEnviado Boolean     @default(false)
   creadoPorAdmin      Boolean     @default(false)
+  /// Gift card con la que se pagó (todo o parte) y cuánto se descontó de ella
+  giftCardId          String?
+  giftCard            GiftCard?   @relation(fields: [giftCardId], references: [id])
+  montoGiftCard       Int         @default(0)
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 
   @@index([inicio])
+  @@index([estado])
+}
+
+enum EstadoGiftCard {
+  PENDIENTE_PAGO
+  ACTIVA
+  USADA
+  ANULADA
+}
+
+/// Tarjeta de regalo: un monto (con saldo) o un tratamiento puntual
+model GiftCard {
+  id                String         @id @default(cuid())
+  /// Lo que se ingresa al reservar, ej: HS-7K2M9Q
+  codigo            String         @unique
+  /// Token secreto del link para ver / imprimir la tarjeta
+  token             String         @unique
+  /// Si tiene tratamiento, vale por ese tratamiento; si no, es de monto
+  servicioId        String?
+  servicio          Servicio?      @relation(fields: [servicioId], references: [id])
+  /// Valor al momento de comprarla (monto, o precio del tratamiento)
+  monto             Int
+  /// Lo que queda por usar (sólo en las de monto)
+  saldo             Int
+  para              String
+  de                String
+  mensaje           String         @default("")
+  compradorEmail    String         @default("")
+  compradorTelefono String         @default("")
+  estado            EstadoGiftCard @default(PENDIENTE_PAGO)
+  /// Se fija al activarla (cuando se cobra)
+  venceEn           DateTime?
+  activadaEn        DateTime?
+  creadaPorAdmin    Boolean        @default(false)
+  turnos            Turno[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
   @@index([estado])
 }
 
@@ -137,5 +180,9 @@ model Configuracion {
   diasMaxReserva       Int      @default(45)
   horasParaCancelar    Int      @default(24)
   politicaCancelacion  String   @default("Podés cancelar sin costo hasta 24 hs antes del turno. Pasado ese plazo la seña no se reintegra.")
+  /// Gift cards: si se venden en la web, valor de la de monto y meses de validez
+  giftcardsActivas     Boolean  @default(true)
+  giftcardMonto        Int      @default(50000)
+  giftcardMeses        Int      @default(2)
   updatedAt            DateTime @updatedAt
 }

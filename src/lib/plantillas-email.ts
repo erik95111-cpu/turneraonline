@@ -1,10 +1,11 @@
-import type { Clienta, Configuracion, Servicio, Turno } from "@prisma/client";
+import type { Clienta, Configuracion, GiftCard, Servicio, Turno } from "@prisma/client";
 import { formatDuracion, formatPrecio, linkWhatsapp } from "./formato";
 import { fechaHoraLarga } from "./tiempo";
 import { siteUrl } from "./config";
 import type { Mail } from "./email";
 
-type TurnoCompleto = Turno & { clienta: Clienta; servicio: Servicio };
+type TurnoCompleto = Turno & { clienta: Clienta; servicio: Servicio; giftCard?: GiftCard | null };
+type GiftCardCompleta = GiftCard & { servicio: Servicio | null };
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -34,6 +35,8 @@ ${fila("Fecha", esc(fechaHoraLarga(t.inicio)))}
 ${fila("Duración", formatDuracion(t.servicio.duracionMin))}
 ${fila("Precio", formatPrecio(t.precio))}
 ${t.montoSena ? fila(t.estado === "PENDIENTE_PAGO" ? "Seña a abonar" : "Seña abonada", formatPrecio(t.montoSena)) : ""}
+${t.giftCard ? fila("Gift card", `${esc(t.giftCard.codigo)} · cubre ${formatPrecio(t.montoGiftCard)}`) : ""}
+${t.giftCard && t.precio > t.montoGiftCard ? fila("A abonar en la sesión", formatPrecio(t.precio - t.montoGiftCard)) : ""}
 </table>`;
 }
 
@@ -52,6 +55,7 @@ function textoPlano(t: TurnoCompleto): string {
     `Duración: ${formatDuracion(t.servicio.duracionMin)}`,
     `Precio: ${formatPrecio(t.precio)}`,
     t.montoSena ? `${t.estado === "PENDIENTE_PAGO" ? "Seña a abonar" : "Seña abonada"}: ${formatPrecio(t.montoSena)}` : "",
+    t.giftCard ? `Gift card: ${t.giftCard.codigo} (cubre ${formatPrecio(t.montoGiftCard)})` : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -184,5 +188,75 @@ ${boton(`${siteUrl()}/admin`, "Abrir la agenda")}`);
     subject: `Nueva reserva (esperando seña): ${t.clienta.nombre} · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
     html,
     text: `Nueva reserva de ${t.clienta.nombre} (${t.clienta.email}, ${t.clienta.telefono}) esperando la seña (te va a escribir por WhatsApp).\n\n${textoPlano(t)}\n\nCuando cobres la seña, confirmala desde el panel: ${siteUrl()}/admin`,
+  };
+}
+
+// ─── Gift cards ────────────────────────────────────────────
+
+const linkGift = (g: GiftCard) => `${siteUrl()}/gift-cards/${g.id}?t=${g.token}`;
+const valorGift = (g: GiftCardCompleta) => (g.servicio ? g.servicio.nombre : formatPrecio(g.monto));
+
+/** La tarjeta dorada (modelo “Oro pleno”) armada con tablas para que se vea en cualquier casilla */
+function tarjetaGift(g: GiftCardCompleta, conCodigo: boolean): string {
+  const rot = "font:600 10px Arial,sans-serif;letter-spacing:2px;text-transform:uppercase;color:#4a3a22";
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 20px;max-width:480px;border-radius:14px;background-color:#c9a96e;background-image:linear-gradient(100deg,#8a6d3b,#e6cf9f 50%,#c9a96e)">
+<tr><td style="padding:26px 26px 8px" width="96"><img src="${siteUrl()}/logo.png" width="86" height="86" alt="" style="display:block;border-radius:50%;border:3px solid #1a140c"></td>
+<td style="padding:26px 26px 8px 4px;color:#1a140c"><div style="${rot}">Gift card</div>
+<div style="font:italic 30px/1.1 Georgia,serif">${g.servicio ? esc(g.servicio.nombre) : "Bienestar"}</div></td></tr>
+<tr><td colspan="2" style="padding:10px 26px 24px;color:#1a140c">
+<table width="100%" cellpadding="0" cellspacing="0"><tr>
+<td style="vertical-align:bottom"><div style="${rot}">Para · De</div><div style="font:18px Georgia,serif">${esc(g.para)} · ${esc(g.de)}</div></td>
+<td style="vertical-align:bottom;text-align:right;font:bold 26px Georgia,serif">${g.servicio ? "" : formatPrecio(g.monto)}</td>
+</tr></table>
+${conCodigo ? `<div style="margin-top:14px;${rot};font-size:13px;letter-spacing:4px;color:#1a140c">${esc(g.codigo)}</div>` : ""}
+</td></tr></table>`;
+}
+
+export function mailGiftCardPendiente(cfg: Configuracion, g: GiftCardCompleta): Mail {
+  const texto = `Hola! Pedí una gift card y quiero abonarla:\n${valorGift(g)}\nPara: ${g.para} · De: ${g.de}\nCódigo de pedido: ${g.codigo}`;
+  const wa = cfg.whatsapp ? linkWhatsapp(cfg.whatsapp, texto) : "";
+  const html = layout(cfg, "Recibimos tu pedido de gift card", `
+${p(`Hola ${esc(g.de.split(" ")[0])}, ¡gracias por regalar bienestar! Para activarla, escribinos por WhatsApp y aboná <strong>${formatPrecio(g.monto)}</strong>.`)}
+${tarjetaGift(g, false)}
+${p("Cuando confirmemos el pago te mandamos la gift card con su código, lista para regalar.")}
+${wa ? boton(wa, "Abonar por WhatsApp") : ""}
+${p(`<a href="${linkGift(g)}" style="color:#8a6d3b">Ver mi pedido</a>`)}`);
+  return {
+    to: g.compradorEmail,
+    subject: `Gift card para ${g.para}: falta el pago`,
+    html,
+    text: [`Recibimos tu pedido de gift card (${valorGift(g)}) para ${g.para}.`, `Para activarla, aboná ${formatPrecio(g.monto)} por WhatsApp${wa ? `: ${wa}` : "."}`, `Ver mi pedido: ${linkGift(g)}`].join("\n"),
+  };
+}
+
+export function mailGiftCardNuevaProfesional(cfg: Configuracion, g: GiftCardCompleta): Mail {
+  const wa = g.compradorTelefono ? linkWhatsapp(g.compradorTelefono) : "";
+  const html = layout(cfg, "Nuevo pedido de gift card", `
+${p(`<strong>${esc(g.de)}</strong> pidió una gift card de <strong>${esc(valorGift(g))}</strong> (${formatPrecio(g.monto)}) para <strong>${esc(g.para)}</strong>. Te va a escribir por WhatsApp para pagarla.`)}
+${p(`Código: <strong>${esc(g.codigo)}</strong><br>✉️ ${esc(g.compradorEmail)}<br>📱 ${wa ? `<a href="${wa}">${esc(g.compradorTelefono)}</a>` : "-"}`)}
+${g.mensaje ? p(`<strong>Mensaje:</strong> ${esc(g.mensaje)}`) : ""}
+${p("Cuando cobres, entrá al panel → <strong>Gift cards</strong> y tocá <strong>“Pago recibido”</strong>. Ahí se le manda la tarjeta por mail.")}
+${boton(`${siteUrl()}/admin/gift-cards`, "Abrir gift cards")}`);
+  return {
+    to: cfg.emailProfesional,
+    subject: `Pedido de gift card: ${valorGift(g)} · de ${g.de} para ${g.para}`,
+    html,
+    text: `Pedido de gift card ${g.codigo}: ${valorGift(g)} (${formatPrecio(g.monto)}) de ${g.de} (${g.compradorEmail}, ${g.compradorTelefono}) para ${g.para}.\nCuando cobres, marcala como pagada: ${siteUrl()}/admin/gift-cards`,
+  };
+}
+
+export function mailGiftCardActiva(cfg: Configuracion, g: GiftCardCompleta): Mail {
+  const vence = g.venceEn ? fechaHoraLarga(g.venceEn).replace(/, \d\d:\d\d hs$/, "") : "";
+  const html = layout(cfg, "¡Tu gift card está lista!", `
+${p(`Hola ${esc(g.de.split(" ")[0])}, ya está activa la gift card para <strong>${esc(g.para)}</strong>. Podés reenviarle este mail, mandarle el link o imprimirla.`)}
+${tarjetaGift(g, true)}
+${g.mensaje ? p(`<em>“${esc(g.mensaje)}”</em>`) : ""}
+${p(`<strong>Cómo se usa:</strong> al reservar el turno en ${esc(siteUrl().replace(/^https?:\/\//, ""))}, en “Tus datos” se ingresa el código <strong>${esc(g.codigo)}</strong>.${vence ? ` Vale hasta el <strong>${esc(vence)}</strong>.` : ""}`)}
+${boton(linkGift(g), "Ver e imprimir la gift card")}`);
+  return {
+    to: g.compradorEmail,
+    subject: `Gift card para ${g.para} · código ${g.codigo}`,
+    html,
+    text: [`¡La gift card para ${g.para} está activa!`, `Valor: ${valorGift(g)}`, `Código: ${g.codigo}`, vence ? `Vale hasta el ${vence}.` : "", `Se usa al reservar en ${siteUrl()}/reservar`, `Ver e imprimir: ${linkGift(g)}`].filter(Boolean).join("\n"),
   };
 }
