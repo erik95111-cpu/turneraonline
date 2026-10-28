@@ -103,6 +103,8 @@ Claves sólo en el servidor (con chequeo automático en cada deploy), RLS en tod
 freno a la fuerza bruta en el login, planes B en las funciones críticas y errores etiquetados `[APP]` / `[LIB:…]`.
 Explicado en detalle en [SEGURIDAD.md](SEGURIDAD.md), y el código línea por línea en [docs/guia-codigo-seguridad.md](docs/guia-codigo-seguridad.md).
 
+**¿Querés entender todo el proyecto?** La guía [docs/proyecto/](docs/proyecto/00-indice.md) recorre cada archivo, paso a paso y línea por línea.
+
 ## Estructura
 
 ```
