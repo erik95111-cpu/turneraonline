@@ -6,7 +6,6 @@ import { getConfig } from "@/lib/config";
 import { fechaHoraLarga } from "@/lib/tiempo";
 import { formatDuracion, formatPrecio, linkWhatsapp } from "@/lib/formato";
 import { mensajeSena } from "@/lib/plantillas-email";
-import { duracionTurnoMin, nombreTratamientos } from "@/lib/tratamientos";
 import { BotonCancelar } from "@/components/BotonCancelar";
 import { IrAWhatsapp } from "@/components/IrAWhatsapp";
 
@@ -21,7 +20,7 @@ export default async function TurnoPage({ params, searchParams }: Props) {
   const { id } = await params;
   const { t: token, nuevo } = await searchParams;
 
-  const turno = await prisma.turno.findUnique({ where: { id }, include: { servicio: true, clienta: true, giftCard: true, tratamientos: { orderBy: { orden: "asc" as const } } } });
+  const turno = await prisma.turno.findUnique({ where: { id }, include: { servicio: true, clienta: true, giftCard: true } });
   if (!turno || !token || turno.token !== token) notFound();
 
   const cfg = await getConfig();
@@ -41,9 +40,9 @@ export default async function TurnoPage({ params, searchParams }: Props) {
   }[turno.estado];
 
   const filas: [string, string][] = [
-    [turno.tratamientos.length > 1 ? "Tratamientos" : "Tratamiento", nombreTratamientos(turno)],
+    ["Tratamiento", turno.servicio.nombre],
     ["Fecha", fechaHoraLarga(turno.inicio)],
-    ["Duración", formatDuracion(duracionTurnoMin(turno))],
+    ["Duración", formatDuracion(turno.servicio.duracionMin)],
     ["Precio", formatPrecio(turno.precio)],
     ...(turno.montoSena ? [[pendiente ? "Seña a abonar" : "Seña", formatPrecio(turno.montoSena)] as [string, string]] : []),
     ...(turno.giftCard ? [["Gift card", `${turno.giftCard.codigo} · cubre ${formatPrecio(turno.montoGiftCard)}`] as [string, string]] : []),
@@ -89,7 +88,7 @@ export default async function TurnoPage({ params, searchParams }: Props) {
         <div className="mt-8 flex flex-col items-center gap-5">
           {(turno.estado === "CANCELADO" || vencido) && <Link href="/reservar" className="btn-oro">Reservar otro turno</Link>}
           {cfg.whatsapp && !(pendiente && !vencido) && (
-            <a href={linkWhatsapp(cfg.whatsapp, `Hola! Tengo una consulta sobre mi turno de ${nombreTratamientos(turno)} del ${fechaHoraLarga(turno.inicio)}`)}
+            <a href={linkWhatsapp(cfg.whatsapp, `Hola! Tengo una consulta sobre mi turno de ${turno.servicio.nombre} del ${fechaHoraLarga(turno.inicio)}`)}
               target="_blank" rel="noopener" className="btn-linea">Escribir por WhatsApp</a>
           )}
           {(turno.estado === "CONFIRMADO" || (pendiente && !vencido)) && futuro && <BotonCancelar turnoId={turno.id} token={turno.token} />}

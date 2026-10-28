@@ -129,10 +129,8 @@ export async function anularGiftCard(id: string): Promise<void> {
   if (!r.count) throw new ErrorReserva("Esta gift card ya no se puede anular");
 }
 
-type Item = Pick<Servicio, "id" | "precio">;
-
-/** Busca la gift card y explica por qué no sirve para estos tratamientos, si no sirve */
-async function validar(db: Tx | typeof prisma, codigo: string, servicioIds: string[], ahora: Date): Promise<GiftCardCompleta> {
+/** Busca la gift card y explica por qué no sirve para este tratamiento, si no sirve */
+async function validar(db: Tx | typeof prisma, codigo: string, servicioId: string, ahora: Date): Promise<GiftCardCompleta> {
   const g = await db.giftCard.findUnique({ where: { codigo: normalizarCodigo(codigo) }, include: incluir });
   if (!g) throw new ErrorReserva("No encontramos una gift card con ese código. Revisalo, por favor.");
   switch (estadoVisible(g, ahora)) {
@@ -141,32 +139,30 @@ async function validar(db: Tx | typeof prisma, codigo: string, servicioIds: stri
     case "ANULADA": throw new ErrorReserva("Esta gift card fue anulada.");
     case "VENCIDA": throw new ErrorReserva(`Esta gift card venció el ${fechaLarga(g.venceEn!)}.`);
   }
-  if (g.servicioId && !servicioIds.includes(g.servicioId)) {
-    throw new ErrorReserva(`Esta gift card es para “${g.servicio?.nombre ?? "otro tratamiento"}”. Sumá ese tratamiento para usarla.`);
+  if (g.servicioId && g.servicioId !== servicioId) {
+    throw new ErrorReserva(`Esta gift card es para “${g.servicio?.nombre ?? "otro tratamiento"}”. Elegí ese tratamiento para usarla.`);
   }
   return g;
 }
 
-/** Cuánto descuenta: la de tratamiento, ese tratamiento; la de monto, hasta su saldo del total */
-function aDescontar(g: GiftCard, items: Item[]): number {
-  if (g.servicioId) return items.find((s) => s.id === g.servicioId)?.precio ?? 0;
-  return Math.min(g.saldo, items.reduce((total, s) => total + s.precio, 0));
+/** Cuánto descuenta la gift card de un tratamiento de este precio */
+function aDescontar(g: GiftCard, precio: number): number {
+  return g.servicioId ? precio : Math.min(g.saldo, precio);
 }
 
 /** Para mostrar en la reserva antes de confirmar */
-export async function consultarGiftCard(codigo: string, servicioIds: string[]): Promise<{ codigo: string; para: string; cubre: number; resta: number }> {
-  const servicios = await prisma.servicio.findMany({ where: { id: { in: servicioIds }, activo: true }, select: { id: true, precio: true } });
-  if (!servicioIds.length || servicios.length !== servicioIds.length) throw new ErrorReserva("Elegí un tratamiento primero");
-  const g = await validar(prisma, codigo, servicioIds, new Date());
-  const cubre = aDescontar(g, servicios);
-  const total = servicios.reduce((t, s) => t + s.precio, 0);
-  return { codigo: g.codigo, para: g.para, cubre, resta: total - cubre };
+export async function consultarGiftCard(codigo: string, servicioId: string): Promise<{ codigo: string; para: string; cubre: number; resta: number }> {
+  const servicio = await prisma.servicio.findFirst({ where: { id: servicioId, activo: true } });
+  if (!servicio) throw new ErrorReserva("Elegí un tratamiento primero");
+  const g = await validar(prisma, codigo, servicioId, new Date());
+  const cubre = aDescontar(g, servicio.precio);
+  return { codigo: g.codigo, para: g.para, cubre, resta: servicio.precio - cubre };
 }
 
 /** Dentro de la transacción de la reserva: descuenta la gift card y devuelve cuánto cubrió */
-export async function aplicarGiftCard(tx: Tx, codigo: string, items: Item[]): Promise<{ id: string; monto: number }> {
-  const g = await validar(tx, codigo, items.map((s) => s.id), new Date());
-  const monto = aDescontar(g, items);
+export async function aplicarGiftCard(tx: Tx, codigo: string, servicioId: string, precio: number): Promise<{ id: string; monto: number }> {
+  const g = await validar(tx, codigo, servicioId, new Date());
+  const monto = aDescontar(g, precio);
   const saldo = g.servicioId ? 0 : g.saldo - monto;
   // Condicional: si otra reserva la usó en el medio, no la descontamos dos veces
   const r = await tx.giftCard.updateMany({

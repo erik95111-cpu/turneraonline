@@ -134,50 +134,6 @@ d("circuito de reservas", async () => {
     expect(await prisma.clienta.count({ where: { email: "nueva@example.com" } })).toBe(1);
   });
 
-  describe("varios tratamientos en un turno", () => {
-    it("los horarios tienen en cuenta la duración sumada", async () => {
-      // 60 + 30 = 90 minutos: a las 11:30 termina justo 13:00; a las 12:00 ya no entra
-      const libres = await t.horariosDisponibles([facial, corporal], sabado);
-      expect(libres).toContain("11:30");
-      expect(libres).not.toContain("12:00");
-      expect(libres.at(-1)).toBe("16:30");
-    });
-
-    it("suma precio y duración, guarda la lista y la muestra en el mail", async () => {
-      const r = await t.crearReserva(datos({ servicioIds: [facial, corporal], hora: "10:00" }));
-      const turno = await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId }, include: { tratamientos: { orderBy: { orden: "asc" } } } });
-      expect(turno.precio).toBe(47000 + 24000);
-      expect(turno.fin.getTime() - turno.inicio.getTime()).toBe(90 * 60_000);
-      expect(turno.servicioId).toBe(facial);
-      expect(turno.tratamientos.map((x) => [x.nombre, x.precio, x.duracionMin])).toEqual([
-        ["Higiene profunda", 47000, 60],
-        ["Celulitis", 24000, 30],
-      ]);
-      expect(mails.find((m) => m.to === "lucia@example.com")?.subject).toContain("Higiene profunda + Celulitis");
-    });
-
-    it("el turno largo ocupa todo su tiempo", async () => {
-      await t.crearReserva(datos({ servicioIds: [facial, corporal], hora: "10:00" }));
-      const libres = await t.horariosDisponibles(corporal, sabado);
-      expect(libres).not.toContain("11:00"); // 10:00 a 11:30 ocupado
-      expect(libres).toContain("11:30");
-    });
-
-    it("la seña es una sola por turno", async () => {
-      await prisma.configuracion.update({ where: { id: 1 }, data: { whatsapp: "1164052481" } });
-      const r = await t.crearReserva(datos({ servicioIds: [facial, corporal] }));
-      expect(r.pendienteSena).toBe(true);
-      expect((await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } })).montoSena).toBe(10000);
-    });
-
-    it("ignora repetidos y rechaza un tratamiento que no existe", async () => {
-      const r = await t.crearReserva(datos({ servicioIds: [corporal, corporal] }));
-      expect((await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } })).precio).toBe(24000);
-      await expect(t.crearReserva(datos({ servicioIds: [facial, "no-existe"], hora: "15:00" }))).rejects.toThrow(/no está disponible/);
-      expect(t.reservaSchema.safeParse({ ...datos(), servicioIds: ["a", "b", "c", "d", "e"] }).success).toBe(false);
-    });
-  });
-
   it("respeta los bloqueos", async () => {
     await prisma.bloqueo.create({ data: { desde: aFechaUTC(sabado, "00:00"), hasta: aFechaUTC(sabado, "23:59"), motivo: "Feriado" } });
     expect(await t.horariosDisponibles(facial, sabado)).toEqual([]);

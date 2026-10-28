@@ -8,7 +8,6 @@ import { calcularSena, pideSena } from "./sena";
 import { aFechaUTC, diaSemana, fechaISO, sumarDias } from "./tiempo";
 import { enviarMail } from "./email";
 import { ErrorReserva } from "./errores";
-import { MAX_TRATAMIENTOS, listaIds } from "./tratamientos";
 import { aplicarGiftCard, devolverGiftCard } from "./giftcards";
 
 export { ErrorReserva };
@@ -52,17 +51,8 @@ function filtroOcupa(ahora: Date): Prisma.TurnoWhereInput {
   };
 }
 
-/** Tratamientos activos, en el orden pedido. null si falta alguno o no hay ninguno. */
-async function serviciosElegidos(db: Tx | typeof prisma, ids: string[]) {
-  if (!ids.length) return null;
-  const encontrados = await db.servicio.findMany({ where: { id: { in: ids }, activo: true } });
-  if (encontrados.length !== ids.length) return null;
-  return ids.map((id) => encontrados.find((s) => s.id === id)!);
-}
-
-/** Horarios libres para hacer uno o varios tratamientos seguidos (suma las duraciones) */
 export async function horariosDisponibles(
-  servicioIds: string | string[],
+  servicioId: string,
   fecha: string,
   opciones: { db?: Tx; sinLimites?: boolean } = {},
 ): Promise<string[]> {
@@ -74,8 +64,8 @@ export async function horariosDisponibles(
   const maxDias = opciones.sinLimites ? 366 : cfg.diasMaxReserva;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || fecha < hoy || fecha > sumarDias(hoy, maxDias)) return [];
 
-  const servicios = await serviciosElegidos(db, listaIds(servicioIds));
-  if (!servicios) return [];
+  const servicio = await db.servicio.findFirst({ where: { id: servicioId, activo: true } });
+  if (!servicio) return [];
 
   const franjas = await db.horarioAtencion.findMany({ where: { diaSemana: diaSemana(fecha) } });
   if (!franjas.length) return [];
@@ -98,7 +88,7 @@ export async function horariosDisponibles(
   return calcularSlots({
     fecha,
     franjas,
-    duracionMin: servicios.reduce((total, s) => total + s.duracionMin, 0),
+    duracionMin: servicio.duracionMin,
     intervaloMin: cfg.intervaloMin,
     ocupados: [...turnos, ...bloqueos.map((b) => ({ inicio: b.desde, fin: b.hasta }))],
     minimoInicio: opciones.sinLimites ? ahora : new Date(ahora.getTime() + cfg.anticipacionMinHoras * 3_600_000),
@@ -110,7 +100,7 @@ export async function horariosDisponibles(
  * Sólo incluye días en los que se atiende y que están dentro del rango reservable.
  */
 export async function disponibilidadDelMes(
-  servicioIds: string | string[],
+  servicioId: string,
   mes: string,
   opciones: { sinLimites?: boolean } = {},
 ): Promise<Record<string, number>> {
@@ -125,7 +115,7 @@ export async function disponibilidadDelMes(
   for (const f of fechas) {
     const hoy = fechaISO(new Date());
     if (f < hoy) continue;
-    const libres = await horariosDisponibles(servicioIds, f, opciones);
+    const libres = await horariosDisponibles(servicioId, f, opciones);
     // horariosDisponibles devuelve [] también fuera de rango: lo distinguimos
     if (libres.length || (await dentroDeRango(f, opciones.sinLimites))) resultado[f] = libres.length;
   }
@@ -139,10 +129,7 @@ async function dentroDeRango(fecha: string, sinLimites?: boolean): Promise<boole
 }
 
 export const reservaSchema = z.object({
-  /** Uno o varios tratamientos, que se hacen seguidos */
-  servicioIds: z.array(z.string().min(1)).max(MAX_TRATAMIENTOS, `Podés elegir hasta ${MAX_TRATAMIENTOS} tratamientos`).default([]),
-  /** Forma vieja (un solo tratamiento): se sigue aceptando */
-  servicioId: z.string().default(""),
+  servicioId: z.string().min(1),
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   hora: z.string().regex(/^\d{2}:\d{2}$/),
   nombre: z.string().trim().min(2, "Ingresá tu nombre").max(80),
@@ -156,7 +143,7 @@ export const reservaSchema = z.object({
 export type DatosReserva = z.input<typeof reservaSchema>;
 
 
-const incluir = { clienta: true, servicio: true, giftCard: true, tratamientos: { orderBy: { orden: "asc" } } } as const;
+const incluir = { clienta: true, servicio: true, giftCard: true } as const;
 
 /**
  * Crea una reserva. Si hay seña configurada, el turno queda apartado hasta que
@@ -170,14 +157,10 @@ export async function crearReserva(
   const cobrarSena = !opciones.sinSena && pideSena(cfg);
 
   const turno = await transaccion(async (tx) => {
-      const ids = listaIds(datos.servicioIds?.length ? datos.servicioIds : datos.servicioId);
-      if (!ids.length) throw new ErrorReserva("Elegí al menos un tratamiento");
-      const servicios = await serviciosElegidos(tx, ids);
-      if (!servicios) throw new ErrorReserva("Alguno de los tratamientos elegidos no está disponible");
-      const precio = servicios.reduce((total, s) => total + s.precio, 0);
-      const duracionMin = servicios.reduce((total, s) => total + s.duracionMin, 0);
+      const servicio = await tx.servicio.findFirst({ where: { id: datos.servicioId, activo: true } });
+      if (!servicio) throw new ErrorReserva("El tratamiento elegido no está disponible");
 
-      const libres = await horariosDisponibles(ids, datos.fecha, { db: tx, sinLimites: opciones.porAdmin });
+      const libres = await horariosDisponibles(servicio.id, datos.fecha, { db: tx, sinLimites: opciones.porAdmin });
       if (!libres.includes(datos.hora)) {
         throw new ErrorReserva("Ese horario ya no está disponible. Elegí otro, por favor.");
       }
@@ -190,9 +173,9 @@ export async function crearReserva(
       });
 
       const inicio = aFechaUTC(datos.fecha, datos.hora);
-      const gift = datos.giftCard ? await aplicarGiftCard(tx, datos.giftCard, servicios) : null;
+      const gift = datos.giftCard ? await aplicarGiftCard(tx, datos.giftCard, servicio.id, servicio.precio) : null;
       // Con gift card el turno queda confirmado directo: la tarjeta ya está paga
-      const montoSena = cobrarSena && !gift ? calcularSena(precio, cfg.senaTipo, cfg.senaValor) : 0;
+      const montoSena = cobrarSena && !gift ? calcularSena(servicio.precio, cfg.senaTipo, cfg.senaValor) : 0;
       const pendiente = montoSena > 0;
       // El horario queda apartado hasta que llegue la seña (nunca más allá del turno)
       const limite = Math.min(Date.now() + Math.max(1, cfg.horasParaSena) * 3_600_000, inicio.getTime());
@@ -200,10 +183,10 @@ export async function crearReserva(
       return tx.turno.create({
         data: {
           clientaId: clienta.id,
-          servicioId: servicios[0].id,
+          servicioId: servicio.id,
           inicio,
-          fin: new Date(inicio.getTime() + duracionMin * 60_000),
-          precio,
+          fin: new Date(inicio.getTime() + servicio.duracionMin * 60_000),
+          precio: servicio.precio,
           montoSena,
           estado: pendiente ? "PENDIENTE_PAGO" : "CONFIRMADO",
           expiraEn: pendiente ? new Date(limite) : null,
@@ -212,9 +195,6 @@ export async function crearReserva(
           token: randomBytes(24).toString("base64url"),
           giftCardId: gift?.id ?? null,
           montoGiftCard: gift?.monto ?? 0,
-          tratamientos: {
-            create: servicios.map((s, orden) => ({ servicioId: s.id, nombre: s.nombre, precio: s.precio, duracionMin: s.duracionMin, orden })),
-          },
         },
         include: incluir,
       });

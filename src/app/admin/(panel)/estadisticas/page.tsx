@@ -15,7 +15,7 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
   const rango = { gte: aFechaUTC(`${mes}-01`, "00:00"), lt: aFechaUTC(`${sig}-01`, "00:00") };
 
   const [turnos, nuevas, servicios] = await Promise.all([
-    prisma.turno.findMany({ where: { inicio: rango, estado: { not: "PENDIENTE_PAGO" } }, select: { estado: true, precio: true, servicioId: true, clientaId: true, tratamientos: { select: { servicioId: true, precio: true } } } }),
+    prisma.turno.findMany({ where: { inicio: rango, estado: { not: "PENDIENTE_PAGO" } }, select: { estado: true, precio: true, servicioId: true, clientaId: true } }),
     prisma.clienta.count({ where: { createdAt: rango, turnos: { some: { estado: { in: ["CONFIRMADO", "COMPLETADO"] } } } } }),
     prisma.servicio.findMany({ select: { id: true, nombre: true } }),
   ]);
@@ -28,12 +28,8 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
 
   const porServicio = servicios
     .map((s) => {
-      // Cada tratamiento cuenta aunque venga combinado con otro en el mismo turno
-      const items = turnos
-        .filter((t) => ["CONFIRMADO", "COMPLETADO"].includes(t.estado))
-        .flatMap((t) => (t.tratamientos.length ? t.tratamientos : [{ servicioId: t.servicioId, precio: t.precio }]))
-        .filter((x) => x.servicioId === s.id);
-      return { nombre: s.nombre, cantidad: items.length, monto: items.reduce((a, x) => a + x.precio, 0) };
+      const ts = turnos.filter((t) => t.servicioId === s.id && ["CONFIRMADO", "COMPLETADO"].includes(t.estado));
+      return { nombre: s.nombre, cantidad: ts.length, monto: ts.reduce((a, t) => a + t.precio, 0) };
     })
     .filter((s) => s.cantidad > 0)
     .sort((a, b) => b.cantidad - a.cantidad);

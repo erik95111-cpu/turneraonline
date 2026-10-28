@@ -10,7 +10,7 @@ reciben la confirmación por **mail** (la profesional también recibe un aviso).
 
 **Web pública**
 - Página de inicio con el logo, tratamientos (por categoría, con duración y precio), “cómo funciona”, “sobre mí” y **video de presentación** al final.
-- Reserva paso a paso: uno o **varios tratamientos** (se hacen seguidos: se suman tiempo y precio) → día y horario (sólo muestra horarios donde entra todo) → datos → confirmar.
+- Reserva en 3 pasos: tratamiento → día y horario (sólo muestra horarios libres) → datos.
 - Seña por transferencia (monto fijo o porcentaje): la clienta ve alias/CBU con botón para copiar y un botón para mandar el comprobante por WhatsApp. El horario queda apartado (24 h por defecto) hasta que la profesional marca **“Seña recibida”** en el panel.
 - Mail de confirmación a la clienta (con archivo para agregar al calendario) y aviso a la profesional.
 - Link en el mail para ver o **cancelar** el turno (hasta X horas antes).

@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db";
 import { aFechaUTC, fechaHoraLarga, fechaISO, sumarDias } from "@/lib/tiempo";
 import { formatPrecio, linkWhatsapp } from "@/lib/formato";
 import { EstadoBadge } from "@/components/EstadoBadge";
-import { nombreTratamientos } from "@/lib/tratamientos";
 import { cambiarEstadoTurno } from "../../acciones";
 
 const POR_PAGINA = 50;
@@ -37,7 +36,7 @@ export default async function Turnos({ searchParams }: { searchParams: Promise<F
             { clienta: { nombre: { contains: q, mode: "insensitive" } } },
             { clienta: { email: { contains: q, mode: "insensitive" } } },
             { clienta: { telefono: { contains: q } } },
-            { tratamientos: { some: { nombre: { contains: q, mode: "insensitive" } } } },
+            { servicio: { nombre: { contains: q, mode: "insensitive" } } },
           ],
         }
       : {}),
@@ -47,7 +46,7 @@ export default async function Turnos({ searchParams }: { searchParams: Promise<F
     prisma.turno.count({ where }),
     prisma.turno.findMany({
       where,
-      include: { clienta: true, servicio: true, tratamientos: { orderBy: { orden: "asc" as const } } },
+      include: { clienta: true, servicio: true },
       orderBy: { inicio: ver === "pasados" || ver === "todos" ? "desc" : "asc" },
       skip: (pagina - 1) * POR_PAGINA,
       take: POR_PAGINA,
@@ -100,7 +99,7 @@ export default async function Turnos({ searchParams }: { searchParams: Promise<F
             <div className="min-w-48 flex-1">
               <Link href={`/admin/clientas/${t.clientaId}`} className="font-medium hover:underline">{t.clienta.nombre}</Link>
               <p className="text-sm text-[#6b635b]">
-                {nombreTratamientos(t)} · {formatPrecio(t.precio)}
+                {t.servicio.nombre} · {formatPrecio(t.precio)}
                 {t.montoSena > 0 && t.estado !== "PENDIENTE_PAGO" && t.estado !== "CANCELADO" && ` · seña ${formatPrecio(t.montoSena)} recibida`}
                 {t.montoGiftCard > 0 && ` · gift card ${formatPrecio(t.montoGiftCard)}`}
               </p>

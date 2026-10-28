@@ -39,20 +39,19 @@ model RecuperacionClave {
 
 /// Tratamiento que ofrece la profesional (limpieza facial, peeling, etc.)
 model Servicio {
-  id          String             @id @default(cuid())
+  id          String     @id @default(cuid())
   nombre      String
-  descripcion String             @default("")
-  categoria   String             @default("Faciales")
+  descripcion String     @default("")
+  categoria   String     @default("Faciales")
   duracionMin Int
   /// Precio en pesos argentinos (sin centavos)
   precio      Int
-  activo      Boolean            @default(true)
-  orden       Int                @default(0)
+  activo      Boolean    @default(true)
+  orden       Int        @default(0)
   turnos      Turno[]
   giftCards   GiftCard[]
-  enTurnos    TurnoTratamiento[]
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 }
 
 /// Franja de atención semanal. Puede haber varias por día (ej: mañana y tarde).
@@ -96,54 +95,36 @@ enum EstadoTurno {
 }
 
 model Turno {
-  id                  String             @id @default(cuid())
+  id                  String      @id @default(cuid())
   clientaId           String
-  clienta             Clienta            @relation(fields: [clientaId], references: [id])
+  clienta             Clienta     @relation(fields: [clientaId], references: [id])
   servicioId          String
-  servicio            Servicio           @relation(fields: [servicioId], references: [id])
+  servicio            Servicio    @relation(fields: [servicioId], references: [id])
   inicio              DateTime
   fin                 DateTime
-  estado              EstadoTurno        @default(PENDIENTE_PAGO)
+  estado              EstadoTurno @default(PENDIENTE_PAGO)
   /// Precio y seña congelados al momento de reservar
   precio              Int
-  montoSena           Int                @default(0)
+  montoSena           Int         @default(0)
   /// Si queda PENDIENTE_PAGO después de esta hora, el horario se libera
   expiraEn            DateTime?
   mpPreferenceId      String?
   mpPaymentId         String?
   pagoEstado          String?
-  notasClienta        String             @default("")
+  notasClienta        String      @default("")
   /// Token secreto para que la clienta vea/cancele su turno desde el mail
-  token               String             @unique @default(cuid())
-  recordatorioEnviado Boolean            @default(false)
-  creadoPorAdmin      Boolean            @default(false)
+  token               String      @unique @default(cuid())
+  recordatorioEnviado Boolean     @default(false)
+  creadoPorAdmin      Boolean     @default(false)
   /// Gift card con la que se pagó (todo o parte) y cuánto se descontó de ella
   giftCardId          String?
-  giftCard            GiftCard?          @relation(fields: [giftCardId], references: [id])
-  montoGiftCard       Int                @default(0)
-  /// Tratamientos del turno (uno o varios seguidos). servicioId es el primero.
-  tratamientos        TurnoTratamiento[]
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  giftCard            GiftCard?   @relation(fields: [giftCardId], references: [id])
+  montoGiftCard       Int         @default(0)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
 
   @@index([inicio])
   @@index([estado])
-}
-
-/// Un tratamiento dentro de un turno, con nombre, precio y duración congelados al reservar
-model TurnoTratamiento {
-  id          String   @id @default(cuid())
-  turnoId     String
-  turno       Turno    @relation(fields: [turnoId], references: [id], onDelete: Cascade)
-  servicioId  String
-  servicio    Servicio @relation(fields: [servicioId], references: [id])
-  nombre      String
-  precio      Int
-  duracionMin Int
-  orden       Int      @default(0)
-
-  @@index([turnoId])
-  @@index([servicioId])
 }
 
 enum EstadoGiftCard {
