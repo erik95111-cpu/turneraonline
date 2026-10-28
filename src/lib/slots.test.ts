@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calcularSlots } from "./slots";
 import { aFechaUTC, diaSemana, sumarDias } from "./tiempo";
-import { calcularSena, senaPorTransferencia } from "./sena";
+import { calcularSena, pideSena } from "./sena";
 
 const base = {
   fecha: "2026-10-05",
@@ -85,18 +85,18 @@ describe("resumenHorarios", () => {
   });
 });
 
-describe("senaPorTransferencia", () => {
-  const base = { senaTipo: "FIJO" as const, senaValor: 10000, cbu: "", alias: "" };
-  it("pide seña sólo si hay alias o CBU cargado", () => {
-    expect(senaPorTransferencia(base)).toBe(false);
-    expect(senaPorTransferencia({ ...base, alias: "mc.skin" })).toBe(true);
-    expect(senaPorTransferencia({ ...base, cbu: "000123" })).toBe(true);
+describe("pideSena", () => {
+  const base = { senaTipo: "FIJO" as const, senaValor: 10000, whatsapp: "" };
+  it("pide seña sólo si hay WhatsApp para coordinar el pago", () => {
+    expect(pideSena(base)).toBe(false);
+    expect(pideSena({ ...base, whatsapp: "9 11 6405-2481" })).toBe(true);
   });
   it("no pide seña si está configurado 'sin seña' o en 0", () => {
-    expect(senaPorTransferencia({ ...base, alias: "x", senaTipo: "NINGUNA" })).toBe(false);
-    expect(senaPorTransferencia({ ...base, alias: "x", senaValor: 0 })).toBe(false);
+    expect(pideSena({ ...base, whatsapp: "x", senaTipo: "NINGUNA" })).toBe(false);
+    expect(pideSena({ ...base, whatsapp: "x", senaValor: 0 })).toBe(false);
   });
 });
+
 
 describe("numeroWhatsapp", () => {
   it("completa el 549 en celulares argentinos escritos de cualquier forma", () => {

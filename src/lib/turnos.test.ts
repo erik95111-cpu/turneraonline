@@ -64,7 +64,7 @@ d("circuito de reservas", async () => {
     await prisma.turno.deleteMany();
     await prisma.bloqueo.deleteMany();
     mails.length = 0;
-    await prisma.configuracion.update({ where: { id: 1 }, data: { alias: "", cbu: "", horasParaSena: 24 } });
+    await prisma.configuracion.update({ where: { id: 1 }, data: { whatsapp: "", horasParaSena: 24 } });
   });
 
   afterAll(async () => {
@@ -87,7 +87,7 @@ d("circuito de reservas", async () => {
     expect(await t.horariosDisponibles("no-existe", sabado)).toEqual([]);
   });
 
-  it("sin alias/CBU cargado confirma el turno y manda mail a la clienta y a la profesional", async () => {
+  it("sin WhatsApp cargado confirma el turno y manda mail a la clienta y a la profesional", async () => {
     const r = await t.crearReserva(datos());
     expect(r.pendienteSena).toBe(false);
     const turno = await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } });
@@ -146,9 +146,9 @@ d("circuito de reservas", async () => {
     expect(t.reservaSchema.safeParse({ ...datos(), hora: "10" }).success).toBe(false);
   });
 
-  describe("con seña por transferencia", () => {
+  describe("con seña por WhatsApp", () => {
     beforeEach(async () => {
-      await prisma.configuracion.update({ where: { id: 1 }, data: { alias: "mc.healthy.skin", cbu: "0000003100000000000001" } });
+      await prisma.configuracion.update({ where: { id: 1 }, data: { whatsapp: "9 11 6405-2481" } });
     });
 
     it("deja el turno apartado esperando la seña y avisa a las dos", async () => {

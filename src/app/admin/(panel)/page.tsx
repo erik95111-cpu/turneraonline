@@ -2,7 +2,6 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { aFechaUTC, fechaHoraLarga, fechaISO, fechaLarga, horaAR, sumarDias } from "@/lib/tiempo";
 import { getConfig } from "@/lib/config";
-import { senaPorTransferencia } from "@/lib/sena";
 import { formatPrecio, linkWhatsapp } from "@/lib/formato";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { cambiarEstadoTurno } from "../acciones";
@@ -17,8 +16,7 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
   const [cfg, cantidadUsuarios] = await Promise.all([getConfig(), prisma.administrador.count()]);
   const pendientes: { ok: boolean; texto: string; link: string }[] = [
     { ok: Boolean(cfg.emailProfesional), texto: "Email de la profesional (donde llegan los avisos)", link: "/admin/configuracion" },
-    { ok: Boolean(cfg.whatsapp), texto: "WhatsApp (donde llegan los comprobantes de la seña)", link: "/admin/configuracion" },
-    { ok: cfg.senaTipo === "NINGUNA" || senaPorTransferencia(cfg), texto: "Alias o CBU para la seña", link: "/admin/configuracion" },
+    { ok: Boolean(cfg.whatsapp), texto: "WhatsApp (ahí te escriben para abonar la seña)", link: "/admin/configuracion" },
     { ok: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS), texto: "Mails conectados (Gmail en Vercel)", link: "/admin/configuracion#mails" },
     { ok: cantidadUsuarios > 0, texto: "Usuario propio de la profesional", link: "/admin/usuarios" },
   ];

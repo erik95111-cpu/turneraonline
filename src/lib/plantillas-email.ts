@@ -33,7 +33,7 @@ ${fila("Tratamiento", esc(t.servicio.nombre))}
 ${fila("Fecha", esc(fechaHoraLarga(t.inicio)))}
 ${fila("Duración", formatDuracion(t.servicio.duracionMin))}
 ${fila("Precio", formatPrecio(t.precio))}
-${t.montoSena ? fila(t.estado === "PENDIENTE_PAGO" ? "Seña a transferir" : "Seña abonada", formatPrecio(t.montoSena)) : ""}
+${t.montoSena ? fila(t.estado === "PENDIENTE_PAGO" ? "Seña a abonar" : "Seña abonada", formatPrecio(t.montoSena)) : ""}
 </table>`;
 }
 
@@ -51,7 +51,7 @@ function textoPlano(t: TurnoCompleto): string {
     `Fecha: ${fechaHoraLarga(t.inicio)}`,
     `Duración: ${formatDuracion(t.servicio.duracionMin)}`,
     `Precio: ${formatPrecio(t.precio)}`,
-    t.montoSena ? `${t.estado === "PENDIENTE_PAGO" ? "Seña a transferir" : "Seña abonada"}: ${formatPrecio(t.montoSena)}` : "",
+    t.montoSena ? `${t.estado === "PENDIENTE_PAGO" ? "Seña a abonar" : "Seña abonada"}: ${formatPrecio(t.montoSena)}` : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -139,50 +139,32 @@ ${boton(linkTurno(t), "Ver o cancelar mi turno")}`);
   };
 }
 
-/** Mensaje que la clienta manda por WhatsApp junto con la captura de la transferencia */
-export function mensajeComprobante(t: TurnoCompleto): string {
-  return `Hola! Te envío el comprobante de la seña de mi turno:\n${t.servicio.nombre} - ${fechaHoraLarga(t.inicio)}\nA nombre de: ${t.clienta.nombre}`;
-}
-
-function datosTransferencia(cfg: Configuracion, t: TurnoCompleto): string {
-  const fila = (k: string, v: string) =>
-    v ? `<tr><td style="padding:5px 0;color:#888;font:14px Arial,sans-serif;width:120px">${k}</td><td style="padding:5px 0;font:15px Arial,sans-serif"><strong>${esc(v)}</strong></td></tr>` : "";
-  return `<table cellpadding="0" cellspacing="0" style="width:100%;margin:8px 0 16px;background:#fbf7ef;border-radius:8px;padding:8px 12px">
-${fila("Monto", formatPrecio(t.montoSena))}
-${fila("Alias", cfg.alias)}
-${fila("CBU / CVU", cfg.cbu)}
-${fila("Titular", cfg.titularCuenta)}
-${fila("Banco", cfg.banco)}
-</table>`;
+/** Mensaje con el que la clienta abre el chat de WhatsApp para abonar la seña */
+export function mensajeSena(t: TurnoCompleto): string {
+  return `Hola! Reservé un turno y quiero abonar la seña de ${formatPrecio(t.montoSena)}:\n${t.servicio.nombre} - ${fechaHoraLarga(t.inicio)}\nA nombre de: ${t.clienta.nombre}`;
 }
 
 export function mailReservaPendienteClienta(cfg: Configuracion, t: TurnoCompleto): Mail {
   const nombre = esc(t.clienta.nombre.split(" ")[0]);
   const limite = t.expiraEn ? fechaHoraLarga(t.expiraEn) : "";
-  const wa = cfg.whatsapp ? linkWhatsapp(cfg.whatsapp, mensajeComprobante(t)) : "";
+  const wa = cfg.whatsapp ? linkWhatsapp(cfg.whatsapp, mensajeSena(t)) : "";
   const html = layout(cfg, "Tu turno está reservado: falta la seña", `
-${p(`Hola ${nombre}, te guardamos este horario. Para confirmarlo, transferí la seña y mandanos la captura por WhatsApp.`)}
+${p(`Hola ${nombre}, te guardamos este horario. Para confirmarlo, escribinos por WhatsApp para abonar la seña de <strong>${formatPrecio(t.montoSena)}</strong>.`)}
 ${detalle(t)}
-${p("<strong>Datos para transferir la seña:</strong>")}
-${datosTransferencia(cfg, t)}
-${limite ? p(`⏰ Tenés tiempo hasta el <strong>${esc(limite)}</strong>. Si no recibimos la seña, el horario se libera.`) : ""}
-${wa ? boton(wa, "Enviar comprobante por WhatsApp") : ""}
+${limite ? p(`⏰ Tenés tiempo hasta el <strong>${esc(limite)}</strong>. Si no se abona la seña, el horario se libera.`) : ""}
+${wa ? boton(wa, "Abonar la seña por WhatsApp") : ""}
 ${p(`<a href="${linkTurno(t)}" style="color:#8a6d3b">Ver mi reserva</a>`)}`);
   return {
     to: t.clienta.email,
     subject: `Reserva pendiente de seña · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
     html,
     text: [
-      `Hola ${t.clienta.nombre}, te guardamos este horario. Para confirmarlo, transferí la seña y mandanos la captura por WhatsApp.`,
+      `Hola ${t.clienta.nombre}, te guardamos este horario. Para confirmarlo, escribinos por WhatsApp para abonar la seña de ${formatPrecio(t.montoSena)}.`,
       "",
       textoPlano(t),
       "",
-      `Alias: ${cfg.alias || "-"}`,
-      `CBU/CVU: ${cfg.cbu || "-"}`,
-      `Titular: ${cfg.titularCuenta || "-"}`,
-      cfg.banco ? `Banco: ${cfg.banco}` : "",
       limite ? `Tenés tiempo hasta el ${limite}.` : "",
-      wa ? `Enviar comprobante: ${wa}` : "",
+      wa ? `Abonar la seña por WhatsApp: ${wa}` : "",
       `Ver mi reserva: ${linkTurno(t)}`,
     ].filter(Boolean).join("\n"),
   };
@@ -191,16 +173,16 @@ ${p(`<a href="${linkTurno(t)}" style="color:#8a6d3b">Ver mi reserva</a>`)}`);
 export function mailNuevaReservaProfesional(cfg: Configuracion, t: TurnoCompleto): Mail {
   const wa = t.clienta.telefono ? linkWhatsapp(t.clienta.telefono) : "";
   const html = layout(cfg, "Nueva reserva: esperando la seña", `
-${p(`<strong>${esc(t.clienta.nombre)}</strong> reservó un turno y tiene que mandarte el comprobante de la seña por WhatsApp.`)}
+${p(`<strong>${esc(t.clienta.nombre)}</strong> reservó un turno y te va a escribir por WhatsApp para abonar la seña.`)}
 ${detalle(t)}
 ${p(`✉️ ${esc(t.clienta.email)}<br>📱 ${wa ? `<a href="${wa}">${esc(t.clienta.telefono)}</a>` : "-"}`)}
 ${t.notasClienta ? p(`<strong>Comentario:</strong> ${esc(t.notasClienta)}`) : ""}
-${p("Cuando te llegue la captura, entrá al panel y tocá <strong>“Seña recibida”</strong> para confirmar el turno.")}
+${p("Cuando cobres la seña, entrá al panel y tocá <strong>“Seña recibida”</strong> para confirmar el turno.")}
 ${boton(`${siteUrl()}/admin`, "Abrir la agenda")}`);
   return {
     to: cfg.emailProfesional,
     subject: `Nueva reserva (esperando seña): ${t.clienta.nombre} · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
     html,
-    text: `Nueva reserva de ${t.clienta.nombre} (${t.clienta.email}, ${t.clienta.telefono}) esperando la seña.\n\n${textoPlano(t)}\n\nCuando llegue el comprobante, confirmala desde el panel: ${siteUrl()}/admin`,
+    text: `Nueva reserva de ${t.clienta.nombre} (${t.clienta.email}, ${t.clienta.telefono}) esperando la seña (te va a escribir por WhatsApp).\n\n${textoPlano(t)}\n\nCuando cobres la seña, confirmala desde el panel: ${siteUrl()}/admin`,
   };
 }

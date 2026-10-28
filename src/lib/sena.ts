@@ -7,7 +7,7 @@ export function calcularSena(precio: number, tipo: TipoSena, valor: number): num
   return Math.min(precio, Math.round((precio * Math.min(valor, 100)) / 100 / 100) * 100);
 }
 
-/** La seña se pide sólo si hay monto configurado y datos para transferir */
-export function senaPorTransferencia(cfg: { senaTipo: TipoSena; senaValor: number; cbu: string; alias: string }): boolean {
-  return cfg.senaTipo !== "NINGUNA" && cfg.senaValor > 0 && Boolean(cfg.cbu.trim() || cfg.alias.trim());
+/** La seña se pide sólo si hay monto configurado y un WhatsApp donde coordinar el pago */
+export function pideSena(cfg: { senaTipo: TipoSena; senaValor: number; whatsapp: string }): boolean {
+  return cfg.senaTipo !== "NINGUNA" && cfg.senaValor > 0 && Boolean(cfg.whatsapp.trim());
 }

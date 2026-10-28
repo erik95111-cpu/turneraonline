@@ -5,20 +5,20 @@ import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { fechaHoraLarga } from "@/lib/tiempo";
 import { formatDuracion, formatPrecio, linkWhatsapp } from "@/lib/formato";
-import { mensajeComprobante } from "@/lib/plantillas-email";
+import { mensajeSena } from "@/lib/plantillas-email";
 import { BotonCancelar } from "@/components/BotonCancelar";
-import { Copiar } from "@/components/Copiar";
+import { IrAWhatsapp } from "@/components/IrAWhatsapp";
 
 export const metadata: Metadata = { title: "Mi turno", robots: { index: false } };
 
 interface Props {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ t?: string }>;
+  searchParams: Promise<{ t?: string; nuevo?: string }>;
 }
 
 export default async function TurnoPage({ params, searchParams }: Props) {
   const { id } = await params;
-  const { t: token } = await searchParams;
+  const { t: token, nuevo } = await searchParams;
 
   const turno = await prisma.turno.findUnique({ where: { id }, include: { servicio: true, clienta: true } });
   if (!turno || !token || turno.token !== token) notFound();
@@ -32,8 +32,8 @@ export default async function TurnoPage({ params, searchParams }: Props) {
   const estados = {
     CONFIRMADO: { icono: "✓", titulo: "¡Turno confirmado!", texto: `Te enviamos los detalles a ${turno.clienta.email}.` },
     PENDIENTE_PAGO: vencido
-      ? { icono: "!", titulo: "La reserva venció", texto: "No recibimos la seña a tiempo y el horario se liberó. Si ya la transferiste, escribinos por WhatsApp." }
-      : { icono: "…", titulo: "¡Turno reservado!", texto: "Para confirmarlo, transferí la seña y mandanos la captura por WhatsApp." },
+      ? { icono: "!", titulo: "La reserva venció", texto: "No se abonó la seña a tiempo y el horario se liberó. Si ya la abonaste, escribinos por WhatsApp." }
+      : { icono: "…", titulo: "¡Turno reservado!", texto: "Para confirmarlo, aboná la seña por WhatsApp. Ahí te pasamos los datos de pago." },
     CANCELADO: { icono: "×", titulo: "Turno cancelado", texto: "Este turno fue cancelado." },
     COMPLETADO: { icono: "✓", titulo: "Turno realizado", texto: "¡Gracias por tu visita!" },
     AUSENTE: { icono: "!", titulo: "Turno no asistido", texto: "" },
@@ -44,7 +44,7 @@ export default async function TurnoPage({ params, searchParams }: Props) {
     ["Fecha", fechaHoraLarga(turno.inicio)],
     ["Duración", formatDuracion(turno.servicio.duracionMin)],
     ["Precio", formatPrecio(turno.precio)],
-    ...(turno.montoSena ? [[pendiente ? "Seña a transferir" : "Seña", formatPrecio(turno.montoSena)] as [string, string]] : []),
+    ...(turno.montoSena ? [[pendiente ? "Seña a abonar" : "Seña", formatPrecio(turno.montoSena)] as [string, string]] : []),
     ...(cfg.direccion ? [["Dirección", cfg.direccion] as [string, string]] : []),
   ];
 
@@ -60,32 +60,16 @@ export default async function TurnoPage({ params, searchParams }: Props) {
         {pendiente && !vencido && (
           <div className="mt-8 space-y-3 text-left">
             <p className="text-center font-serif text-2xl text-gold-light">Seña: {formatPrecio(turno.montoSena)}</p>
-            {cfg.alias && <Copiar etiqueta="Alias" valor={cfg.alias} />}
-            {cfg.cbu && <Copiar etiqueta="CBU / CVU" valor={cfg.cbu} />}
-            {(cfg.titularCuenta || cfg.banco) && (
-              <p className="px-1 text-sm text-piedra">
-                {cfg.titularCuenta && <>Titular: <span className="text-cream">{cfg.titularCuenta}</span></>}
-                {cfg.titularCuenta && cfg.banco && " · "}
-                {cfg.banco && <>Banco: <span className="text-cream">{cfg.banco}</span></>}
-              </p>
-            )}
             {turno.expiraEn && (
               <p className="rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm first-letter:uppercase">
-                ⏰ Tenés tiempo hasta el <strong>{fechaHoraLarga(turno.expiraEn)}</strong>. Si no recibimos la seña, el horario se libera.
+                ⏰ Tenés tiempo hasta el <strong>{fechaHoraLarga(turno.expiraEn)}</strong>. Si no se abona la seña, el horario se libera.
               </p>
             )}
             {cfg.whatsapp && (
-              <a
-                href={linkWhatsapp(cfg.whatsapp, mensajeComprobante(turno))}
-                target="_blank"
-                rel="noopener"
-                className="btn-oro mt-2 w-full"
-              >
-                Enviar comprobante por WhatsApp
-              </a>
+              <IrAWhatsapp href={linkWhatsapp(cfg.whatsapp, mensajeSena(turno))} turnoId={turno.id} autoAbrir={nuevo === "1"} />
             )}
             <p className="text-center text-xs text-piedra">
-              Te mandamos estos datos también a {turno.clienta.email}. Cuando confirmemos la seña te llega otro mail.
+              Te mandamos los datos de la reserva a {turno.clienta.email}. Cuando confirmemos la seña te llega otro mail.
             </p>
           </div>
         )}

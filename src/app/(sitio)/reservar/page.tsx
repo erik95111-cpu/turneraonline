@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { fechaISO, sumarDias } from "@/lib/tiempo";
-import { senaPorTransferencia } from "@/lib/sena";
+import { pideSena } from "@/lib/sena";
 import { Reserva } from "@/components/Reserva";
 import { reservarTurno } from "@/app/actions/reservas";
 
@@ -36,7 +36,7 @@ export default async function ReservarPage({ searchParams }: { searchParams: Pro
           diasAtencion={[...new Set(franjas.map((f) => f.diaSemana))]}
           desde={hoy}
           hasta={sumarDias(hoy, cfg.diasMaxReserva)}
-          sena={{ tipo: cfg.senaTipo, valor: cfg.senaValor, activa: senaPorTransferencia(cfg) }}
+          sena={{ tipo: cfg.senaTipo, valor: cfg.senaValor, activa: pideSena(cfg) }}
           politica={cfg.politicaCancelacion}
           accion={reservarTurno}
         />

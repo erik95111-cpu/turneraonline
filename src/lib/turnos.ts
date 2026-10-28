@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "./db";
 import { getConfig } from "./config";
 import { calcularSlots } from "./slots";
-import { calcularSena, senaPorTransferencia } from "./sena";
+import { calcularSena, pideSena } from "./sena";
 import { aFechaUTC, diaSemana, fechaISO, sumarDias } from "./tiempo";
 import { enviarMail } from "./email";
 import {
@@ -108,15 +108,15 @@ export class ErrorReserva extends Error {}
 const incluir = { clienta: true, servicio: true } as const;
 
 /**
- * Crea una reserva. Si hay seña configurada (y datos para transferir), el turno
- * queda apartado esperando el comprobante; si no, queda confirmado.
+ * Crea una reserva. Si hay seña configurada, el turno queda apartado hasta que
+ * la clienta la abone por WhatsApp; si no, queda confirmado.
  */
 export async function crearReserva(
   datos: DatosReserva,
   opciones: { porAdmin?: boolean; sinSena?: boolean } = {},
 ): Promise<{ turnoId: string; token: string; pendienteSena: boolean }> {
   const cfg = await getConfig();
-  const cobrarSena = !opciones.sinSena && senaPorTransferencia(cfg);
+  const cobrarSena = !opciones.sinSena && pideSena(cfg);
 
   const turno = await transaccion(async (tx) => {
       const servicio = await tx.servicio.findFirst({ where: { id: datos.servicioId, activo: true } });
@@ -173,7 +173,7 @@ export async function crearReserva(
 }
 
 /**
- * La profesional confirma que recibió la seña (comprobante por WhatsApp).
+ * La profesional confirma que recibió la seña (coordinada por WhatsApp).
  * Si la reserva ya había vencido, sólo se confirma si el horario sigue libre.
  */
 export async function confirmarSena(turnoId: string): Promise<void> {

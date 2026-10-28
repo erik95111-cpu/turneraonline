@@ -5,7 +5,7 @@ import { getConfig } from "@/lib/config";
 import { formatDuracion, formatPrecio } from "@/lib/formato";
 import { VideoPresentacion } from "@/components/VideoPresentacion";
 import { Intro } from "@/components/Intro";
-import { calcularSena, senaPorTransferencia } from "@/lib/sena";
+import { calcularSena, pideSena } from "@/lib/sena";
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ intro?: string }> }) {
   const { intro } = await searchParams;
@@ -15,7 +15,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ i
   ]);
 
   const categorias = [...new Set(servicios.map((s) => s.categoria))];
-  const conSena = senaPorTransferencia(cfg);
+  const conSena = pideSena(cfg);
 
   return (
     <>
@@ -130,7 +130,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ i
               [
                 conSena ? "Confirmá con tu seña" : "Confirmá tus datos",
                 conSena
-                  ? "Transferís la seña, mandás la captura por WhatsApp y te llega la confirmación por mail."
+                  ? "Abonás la seña por WhatsApp y te llega la confirmación por mail."
                   : "Te llega la confirmación por mail al instante.",
               ],
             ].map(([t, d], i) => (

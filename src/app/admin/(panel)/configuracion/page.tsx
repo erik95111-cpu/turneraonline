@@ -1,6 +1,6 @@
 import { getConfig } from "@/lib/config";
 import { requireAdmin } from "@/lib/auth";
-import { senaPorTransferencia } from "@/lib/sena";
+import { pideSena } from "@/lib/sena";
 import { enviarMailPrueba, guardarConfiguracion } from "../../acciones";
 
 interface Avisos { ok?: string; mailok?: string; mailerror?: string }
@@ -8,7 +8,7 @@ interface Avisos { ok?: string; mailok?: string; mailerror?: string }
 export default async function Configuracion({ searchParams }: { searchParams: Promise<Avisos> }) {
   const [sp, c, yo] = await Promise.all([searchParams, getConfig(), requireAdmin()]);
   const smtp = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-  const sena = senaPorTransferencia(c);
+  const sena = pideSena(c);
 
   const Campo = (p: { name: keyof typeof c; label: string; type?: string; ayuda?: string; className?: string; placeholder?: string }) => (
     <div className={p.className}>
@@ -22,10 +22,10 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="grid gap-3 sm:grid-cols-2">
         <Estado ok={smtp} titulo="Envío de mails" detalle={smtp ? "Configurado. Probalo abajo con un mail de prueba." : "Faltan las variables SMTP_* en Vercel"} />
-        <Estado ok={sena} titulo="Seña por transferencia"
-          detalle={sena ? "Activa: las clientas ven el alias/CBU al reservar" : c.senaTipo === "NINGUNA" ? "Sin seña: los turnos se confirman directo" : "Cargá el alias o CBU para pedir la seña"} />
+        <Estado ok={sena || c.senaTipo === "NINGUNA"} titulo="Seña por WhatsApp"
+          detalle={sena ? "Activa: al reservar, la clienta va a WhatsApp a abonarla" : c.senaTipo === "NINGUNA" ? "Sin seña: los turnos se confirman directo" : "Cargá el WhatsApp para pedir la seña"} />
         <Estado ok={Boolean(c.emailProfesional)} titulo="Email de la profesional" detalle={c.emailProfesional || "Completalo abajo para recibir los avisos de turnos"} />
-        <Estado ok={Boolean(c.whatsapp)} titulo="WhatsApp" detalle={c.whatsapp || "Completalo: ahí llegan los comprobantes de la seña"} />
+        <Estado ok={Boolean(c.whatsapp)} titulo="WhatsApp" detalle={c.whatsapp || "Completalo: ahí te escriben para abonar la seña"} />
       </div>
 
       {/* Prueba de mails (formulario aparte) */}
@@ -53,7 +53,7 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
           <Campo name="nombreNegocio" label="Nombre del negocio" />
           <Campo name="nombreProfesional" label="Nombre de la profesional" />
           <Campo name="emailProfesional" label="Email donde recibís los avisos de turnos" type="email" className="sm:col-span-2" />
-          <Campo name="whatsapp" label="WhatsApp (ahí llegan los comprobantes)" ayuda="Con código de país, ej: +54 9 11 2345 6789" />
+          <Campo name="whatsapp" label="WhatsApp (ahí te escriben para abonar la seña)" ayuda="Con código de país, ej: +54 9 11 2345 6789" />
           <Campo name="instagram" label="Instagram" ayuda="Ej: @healthyskin" />
           <Campo name="direccion" label="Dirección" className="sm:col-span-2" />
           <div className="sm:col-span-2">
@@ -66,10 +66,10 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
 
         <section className="card grid gap-4 p-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <h2 className="font-semibold">Seña por transferencia</h2>
+            <h2 className="font-semibold">Seña por WhatsApp</h2>
             <p className="text-sm text-[#6b635b]">
-              Al reservar, la clienta ve estos datos y un botón para mandarte la captura por WhatsApp.
-              Cuando la recibís, en la Agenda tocás <strong>“Seña recibida”</strong> y el turno queda confirmado.
+              Al reservar, a la clienta se le abre WhatsApp con un mensaje para abonar la seña. Le pasás los datos de pago por ahí
+              y, cuando cobrás, en la Agenda tocás <strong>“Seña recibida”</strong> y el turno queda confirmado.
             </p>
           </div>
           <div>
@@ -81,12 +81,8 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
             </select>
           </div>
           <Campo name="senaValor" label="Valor ($ o %)" type="number" />
-          <Campo name="alias" label="Alias" placeholder="mc.healthy.skin" />
-          <Campo name="cbu" label="CBU o CVU (22 números)" placeholder="0000003100000000000000" />
-          <Campo name="titularCuenta" label="Titular de la cuenta" />
-          <Campo name="banco" label="Banco o billetera" placeholder="Ej: Mercado Pago, Galicia…" />
-          <Campo name="horasParaSena" label="Horas para mandar la seña" type="number"
-            ayuda="El horario queda apartado este tiempo. Si no llega el comprobante, se libera solo." />
+          <Campo name="horasParaSena" label="Horas para abonar la seña" type="number"
+            ayuda="El horario queda apartado este tiempo. Si no se abona la seña, se libera solo." />
         </section>
 
         <section className="card grid gap-4 p-5 sm:grid-cols-2">
