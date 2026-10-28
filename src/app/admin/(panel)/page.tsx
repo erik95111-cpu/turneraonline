@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 import { aFechaUTC, fechaHoraLarga, fechaISO, fechaLarga, horaAR, sumarDias } from "@/lib/tiempo";
 import { getConfig } from "@/lib/config";
 import { senaPorTransferencia } from "@/lib/sena";
@@ -8,6 +9,7 @@ import { EstadoBadge } from "@/components/EstadoBadge";
 import { cambiarEstadoTurno } from "../acciones";
 
 export default async function Agenda({ searchParams }: { searchParams: Promise<{ desde?: string; aviso?: string }> }) {
+  await requireAdmin(); // cada página revisa la sesión (el layout no se vuelve a ejecutar al navegar)
   const sp = await searchParams;
   const hoy = fechaISO(new Date());
   const desde = sp.desde && /^\d{4}-\d{2}-\d{2}$/.test(sp.desde) ? sp.desde : hoy;

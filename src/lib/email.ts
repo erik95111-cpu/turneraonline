@@ -1,4 +1,6 @@
+import "server-only";
 import nodemailer from "nodemailer";
+import { logError, logWarn } from "./log";
 import type { Transporter } from "nodemailer";
 
 let transporter: Transporter | null | undefined;
@@ -34,14 +36,15 @@ export async function enviarMail(mail: Mail): Promise<boolean> {
   if (!mail.to) return false;
   const t = getTransporter();
   if (!t) {
-    console.info(`[email desactivado] Para: ${mail.to} | ${mail.subject}`);
+    logWarn(`email desactivado (faltan SMTP_*) · para ${mail.to} | ${mail.subject}`);
     return false;
   }
   try {
     await t.sendMail({ from: process.env.EMAIL_FROM || process.env.SMTP_USER, ...mail });
     return true;
   } catch (err) {
-    console.error("[email] Error enviando a", mail.to, err);
+    // Queda en el log como [LIB:nodemailer] → problema de Gmail/SMTP, no del código
+    logError(`email a ${mail.to}`, err);
     return false;
   }
 }

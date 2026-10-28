@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { EstadoTurno, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 import { fechaHoraLarga } from "@/lib/tiempo";
 import { formatPrecio, linkWhatsapp } from "@/lib/formato";
 import { EstadoBadge } from "@/components/EstadoBadge";
@@ -19,6 +20,7 @@ const ESTADOS: [EstadoTurno | "", string][] = [
 interface Filtros { ver?: string; estado?: string; q?: string; pagina?: string }
 
 export default async function Turnos({ searchParams }: { searchParams: Promise<Filtros> }) {
+  await requireAdmin(); // cada página revisa la sesión (el layout no se vuelve a ejecutar al navegar)
   const sp = await searchParams;
   const ver = sp.ver === "pasados" || sp.ver === "todos" ? sp.ver : "proximos";
   const estado = ESTADOS.some(([e]) => e && e === sp.estado) ? (sp.estado as EstadoTurno) : undefined;

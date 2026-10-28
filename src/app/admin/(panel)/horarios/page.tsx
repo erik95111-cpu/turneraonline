@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 import { fechaHoraLarga } from "@/lib/tiempo";
 import { DIAS, ORDEN_SEMANA as ORDEN } from "@/lib/dias";
 import { agregarBloqueo, agregarFranja, eliminarBloqueo, eliminarFranja } from "../../acciones";
 
 
 export default async function Horarios() {
+  await requireAdmin(); // cada página revisa la sesión (el layout no se vuelve a ejecutar al navegar)
   const [franjas, bloqueos] = await Promise.all([
     prisma.horarioAtencion.findMany({ orderBy: { horaInicio: "asc" } }),
     prisma.bloqueo.findMany({ where: { hasta: { gt: new Date() } }, orderBy: { desde: "asc" } }),

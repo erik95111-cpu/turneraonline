@@ -7,6 +7,7 @@ import { formatDuracion, formatPrecio } from "@/lib/formato";
 import { calcularSena } from "@/lib/sena";
 import { DIAS, MESES } from "@/lib/dias";
 import type { ResultadoReserva } from "@/app/actions/reservas";
+import { logError } from "@/lib/log";
 
 export interface ServicioReserva {
   id: string;
@@ -67,7 +68,9 @@ export function Reserva(p: Props) {
       })
       .then((d) => setHorarios(Array.isArray(d.horarios) ? d.horarios : []))
       .catch((e: unknown) => {
-        if ((e as Error).name !== "AbortError") setErrorHorarios(true);
+        if ((e as Error).name === "AbortError") return; // cambió de día: no es un error
+        logError("horarios (navegador)", e);
+        setErrorHorarios(true); // muestra "No pudimos cargar los horarios · Reintentar"
       });
     return () => ctrl.abort();
   }, [servicioId, fecha, claro, recarga]);
@@ -83,15 +86,28 @@ export function Reserva(p: Props) {
     const fd = new FormData(e.currentTarget);
     setError(null);
     startTransition(async () => {
-      const r = await p.accion(
-        {
-          servicioId: servicio.id,
-          fecha,
-          hora,
-          ...form,
-        },
-        String(fd.get("website") ?? ""),
-      );
+      let r: ResultadoReserva;
+      try {
+        r = await p.accion(
+          {
+            servicioId: servicio.id,
+            fecha,
+            hora,
+            ...form,
+          },
+          String(fd.get("website") ?? ""),
+        );
+      } catch (err) {
+        // Fallback: se cortó internet o el servidor no respondió. Los datos
+        // cargados se conservan para que pueda tocar el botón de nuevo.
+        const origen = logError("reserva (navegador)", err);
+        setError(
+          origen === "LIB:red"
+            ? "Parece que se cortó la conexión. Revisá tu internet y tocá el botón de nuevo."
+            : "No pudimos completar la reserva. Probá de nuevo en unos segundos o escribinos por WhatsApp.",
+        );
+        return;
+      }
       if (r.ok) {
         window.location.href = r.url;
       } else {

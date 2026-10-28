@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 import { fechaHoraLarga } from "@/lib/tiempo";
 import { formatPrecio, linkWhatsapp } from "@/lib/formato";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { guardarFicha } from "../../../acciones";
 
 export default async function FichaClienta({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdmin(); // cada página revisa la sesión (el layout no se vuelve a ejecutar al navegar)
   const { id } = await params;
   const c = await prisma.clienta.findUnique({
     where: { id },

@@ -23,6 +23,16 @@ model Administrador {
   updatedAt     DateTime  @updatedAt
 }
 
+/// Intento de ingreso fallido al panel (para frenar ataques de fuerza bruta).
+/// clave = "ip:<dirección>" o "usuario:<email>". Se borran solos después de un día.
+model IntentoLogin {
+  id       String   @id @default(cuid())
+  clave    String
+  creadoEn DateTime @default(now())
+
+  @@index([clave, creadoEn])
+}
+
 /// Tratamiento que ofrece la profesional (limpieza facial, peeling, etc.)
 model Servicio {
   id          String   @id @default(cuid())

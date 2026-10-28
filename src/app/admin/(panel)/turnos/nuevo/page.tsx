@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 import { fechaISO, sumarDias } from "@/lib/tiempo";
 import { Reserva } from "@/components/Reserva";
 import { reservarDesdePanel } from "../../../acciones";
 
 export default async function NuevoTurno() {
+  await requireAdmin(); // cada página revisa la sesión (el layout no se vuelve a ejecutar al navegar)
   const [servicios, franjas] = await Promise.all([
     prisma.servicio.findMany({
       where: { activo: true },

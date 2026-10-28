@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 import { fechaLarga } from "@/lib/tiempo";
 
 export default async function Clientas({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  await requireAdmin(); // cada página revisa la sesión (el layout no se vuelve a ejecutar al navegar)
   const { q = "" } = await searchParams;
   const clientas = await prisma.clienta.findMany({
     where: q

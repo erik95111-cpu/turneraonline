@@ -1,10 +1,12 @@
 import Link from "next/link";
 import type { Servicio } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 import { formatDuracion, formatPrecio } from "@/lib/formato";
 import { eliminarServicio, guardarServicio } from "../../acciones";
 
 export default async function Servicios({ searchParams }: { searchParams: Promise<{ editar?: string }> }) {
+  await requireAdmin(); // cada página revisa la sesión (el layout no se vuelve a ejecutar al navegar)
   const { editar } = await searchParams;
   const servicios = await prisma.servicio.findMany({ orderBy: [{ orden: "asc" }, { nombre: "asc" }] });
   const enEdicion = editar === "nuevo" ? null : servicios.find((s) => s.id === editar);

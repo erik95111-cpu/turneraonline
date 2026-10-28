@@ -1,3 +1,4 @@
+import "server-only";
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -7,6 +8,7 @@ import { calcularSlots } from "./slots";
 import { calcularSena, senaPorTransferencia } from "./sena";
 import { aFechaUTC, diaSemana, fechaISO, sumarDias } from "./tiempo";
 import { enviarMail } from "./email";
+import { ErrorApp, logError } from "./log";
 import {
   mailCancelacion,
   mailConfirmacionClienta,
@@ -103,7 +105,8 @@ export const reservaSchema = z.object({
 
 export type DatosReserva = z.infer<typeof reservaSchema>;
 
-export class ErrorReserva extends Error {}
+/** Error "esperado" de las reservas: el mensaje se le muestra tal cual a la clienta */
+export class ErrorReserva extends ErrorApp {}
 
 const incluir = { clienta: true, servicio: true } as const;
 
@@ -163,12 +166,19 @@ export async function crearReserva(
   });
 
   const pendienteSena = turno.estado === "PENDIENTE_PAGO";
-  const cfgActual = await getConfig();
-  await Promise.all(
-    pendienteSena
-      ? [enviarMail(mailReservaPendienteClienta(cfgActual, turno)), enviarMail(mailNuevaReservaProfesional(cfgActual, turno))]
-      : [enviarMail(mailConfirmacionClienta(cfgActual, turno)), enviarMail(mailNuevoTurnoProfesional(cfgActual, turno))],
-  );
+  // Fallback: el turno YA quedó guardado. Si fallan los mails (o armarlos),
+  // lo dejamos en el log pero la clienta ve su reserva igual; si le
+  // mostráramos un error podría reservar dos veces.
+  try {
+    const cfgActual = await getConfig();
+    await Promise.all(
+      pendienteSena
+        ? [enviarMail(mailReservaPendienteClienta(cfgActual, turno)), enviarMail(mailNuevaReservaProfesional(cfgActual, turno))]
+        : [enviarMail(mailConfirmacionClienta(cfgActual, turno)), enviarMail(mailNuevoTurnoProfesional(cfgActual, turno))],
+    );
+  } catch (err) {
+    logError(`mails de la reserva ${turno.id}`, err);
+  }
   return { turnoId: turno.id, token: turno.token, pendienteSena };
 }
 
@@ -196,7 +206,12 @@ export async function confirmarSena(turnoId: string): Promise<void> {
       include: incluir,
     });
   });
-  await enviarMail(mailConfirmacionClienta(await getConfig(), turno));
+  // Igual que arriba: la seña ya quedó confirmada aunque falle el mail
+  try {
+    await enviarMail(mailConfirmacionClienta(await getConfig(), turno));
+  } catch (err) {
+    logError(`mail de seña confirmada ${turno.id}`, err);
+  }
 }
 
 export async function cancelarTurno(turnoId: string, por: "clienta" | "admin"): Promise<void> {
@@ -222,9 +237,13 @@ export async function cancelarTurno(turnoId: string, por: "clienta" | "admin"): 
   if (!r.count) throw new ErrorReserva("El turno cambió de estado. Recargá la página.");
 
   if (eraConfirmado) {
-    await Promise.all([
-      enviarMail(mailCancelacion(cfg, turno, "clienta")),
-      enviarMail(mailCancelacion(cfg, turno, "profesional")),
-    ]);
+    try {
+      await Promise.all([
+        enviarMail(mailCancelacion(cfg, turno, "clienta")),
+        enviarMail(mailCancelacion(cfg, turno, "profesional")),
+      ]);
+    } catch (err) {
+      logError(`mails de cancelación ${turno.id}`, err);
+    }
   }
 }

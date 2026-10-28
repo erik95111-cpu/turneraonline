@@ -37,3 +37,5 @@ jobs:
       - run: npm test
       - run: npm run db:seed
       - run: npm run build
+      - name: Ninguna clave en los archivos del navegador
+        run: node scripts/verificar-secretos.mjs

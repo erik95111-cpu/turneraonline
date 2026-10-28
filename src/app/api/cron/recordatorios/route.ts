@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { enviarMail } from "@/lib/email";
 import { mailRecordatorio } from "@/lib/plantillas-email";
+import { logError } from "@/lib/log";
+import { igualesSeguro } from "@/lib/passwords";
 import { aFechaUTC, fechaISO, sumarDias } from "@/lib/tiempo";
 
 /**
@@ -11,7 +13,8 @@ import { aFechaUTC, fechaISO, sumarDias } from "@/lib/tiempo";
  */
 export async function GET(req: Request) {
   const secreto = process.env.CRON_SECRET;
-  if (!secreto || req.headers.get("authorization") !== `Bearer ${secreto}`) {
+  // Sólo Vercel Cron conoce CRON_SECRET. Comparación en tiempo constante.
+  if (!secreto || !igualesSeguro(req.headers.get("authorization") ?? "", `Bearer ${secreto}`)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
@@ -27,11 +30,18 @@ export async function GET(req: Request) {
 
   const cfg = await getConfig();
   let enviados = 0;
+  let fallidos = 0;
   for (const t of turnos) {
-    if (await enviarMail(mailRecordatorio(cfg, t))) {
-      await prisma.turno.update({ where: { id: t.id }, data: { recordatorioEnviado: true } });
-      enviados++;
+    // Fallback: si falla el recordatorio de una clienta, seguimos con las demás
+    try {
+      if (await enviarMail(mailRecordatorio(cfg, t))) {
+        await prisma.turno.update({ where: { id: t.id }, data: { recordatorioEnviado: true } });
+        enviados++;
+      } else fallidos++;
+    } catch (err) {
+      logError(`recordatorio ${t.id}`, err);
+      fallidos++;
     }
   }
-  return NextResponse.json({ revisados: turnos.length, enviados });
+  return NextResponse.json({ revisados: turnos.length, enviados, fallidos });
 }

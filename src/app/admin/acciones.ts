@@ -19,8 +19,16 @@ function refrescar() {
   revalidatePath("/", "layout");
 }
 
+/**
+ * Botón "Salir" del panel:
+ *  1. borra la cookie de sesión,
+ *  2. revalidatePath vacía la caché del navegador, así que con el botón
+ *     "Atrás" no se puede volver a ver el panel ya cerrado,
+ *  3. manda al login.
+ */
 export async function salir() {
   await cerrarSesion();
+  revalidatePath("/admin", "layout");
   redirect("/admin/login");
 }
 

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 import { aFechaUTC, fechaISO } from "@/lib/tiempo";
 import { formatPrecio } from "@/lib/formato";
 import { MESES } from "@/lib/dias";
 
 
 export default async function Estadisticas({ searchParams }: { searchParams: Promise<{ mes?: string }> }) {
+  await requireAdmin(); // cada página revisa la sesión (el layout no se vuelve a ejecutar al navegar)
   const sp = await searchParams;
   const actual = fechaISO(new Date()).slice(0, 7);
   const mes = sp.mes && /^\d{4}-\d{2}$/.test(sp.mes) ? sp.mes : actual;

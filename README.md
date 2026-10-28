@@ -97,6 +97,12 @@ Sin `SMTP_*` configurado, los mails no se envían y se muestran en la consola.
 | `npm run build` | Build de producción |
 | `npm run db:seed` | Datos iniciales |
 
+## Seguridad
+
+Claves sólo en el servidor (con chequeo automático en cada deploy), RLS en todas las tablas, cierre de sesión completo,
+freno a la fuerza bruta en el login, planes B en las funciones críticas y errores etiquetados `[APP]` / `[LIB:…]`.
+Explicado en detalle en [SEGURIDAD.md](SEGURIDAD.md).
+
 ## Estructura
 
 ```
@@ -107,6 +113,8 @@ src/app/api/                Disponibilidad y cron de recordatorios
 src/lib/turnos.ts           Lógica de reservas, pagos y cancelaciones
 src/lib/slots.ts            Cálculo de horarios libres
 src/lib/plantillas-email.ts Mails
+src/lib/log.ts              Errores etiquetados [APP] / [LIB:…]
+prisma/rls.sql              RLS en todas las tablas
 ```
 
 ## Licencia
