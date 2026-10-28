@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   url       = env("DATABASE_URL")
   /// Conexión directa (sin pooler) para las migraciones. La integración de Neon en Vercel la crea sola.
   directUrl = env("DATABASE_URL_UNPOOLED")
@@ -11,33 +11,47 @@ datasource db {
 
 /// Persona que puede entrar al panel (la profesional, una secretaria, etc.)
 model Administrador {
-  id            String    @id @default(cuid())
-  nombre        String
-  email         String    @unique
-  passwordHash  String
-  activo        Boolean   @default(true)
+  id             String              @id @default(cuid())
+  nombre         String
+  email          String              @unique
+  passwordHash   String
+  activo         Boolean             @default(true)
   /// Sube cada vez que cambia la contraseña: cierra las sesiones abiertas en otros dispositivos
-  version       Int       @default(0)
-  ultimoIngreso DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  version        Int                 @default(0)
+  ultimoIngreso  DateTime?
+  recuperaciones RecuperacionClave[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+}
+
+/// Link de “Olvidé mi contraseña”: se guarda sólo el hash del código, vence en 1 hora y sirve una vez
+model RecuperacionClave {
+  id              String        @id @default(cuid())
+  administradorId String
+  administrador   Administrador @relation(fields: [administradorId], references: [id], onDelete: Cascade)
+  tokenHash       String        @unique
+  expiraEn        DateTime
+  usadoEn         DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([administradorId, createdAt])
 }
 
 /// Tratamiento que ofrece la profesional (limpieza facial, peeling, etc.)
 model Servicio {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   nombre      String
-  descripcion String   @default("")
-  categoria   String   @default("Faciales")
+  descripcion String     @default("")
+  categoria   String     @default("Faciales")
   duracionMin Int
   /// Precio en pesos argentinos (sin centavos)
   precio      Int
-  activo      Boolean  @default(true)
-  orden       Int      @default(0)
+  activo      Boolean    @default(true)
+  orden       Int        @default(0)
   turnos      Turno[]
   giftCards   GiftCard[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 }
 
 /// Franja de atención semanal. Puede haber varias por día (ej: mañana y tarde).

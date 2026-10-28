@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { crearSesion, verificarCredenciales } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -54,6 +55,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <input id="password" type="password" name="password" autoComplete="current-password" placeholder="Contraseña" required className="campo mt-3 text-left" />
         {error && <p role="alert" className="mt-3 text-sm text-red-400">Email o contraseña incorrectos</p>}
         <button className="btn-oro mt-6 w-full">Ingresar</button>
+        <Link href="/admin/login/olvide" className="mt-5 inline-block text-sm text-piedra underline underline-offset-4 hover:text-gold-light">
+          ¿Olvidaste tu contraseña?
+        </Link>
       </form>
     </div>
   );

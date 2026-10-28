@@ -1,4 +1,4 @@
-import type { Clienta, Configuracion, GiftCard, Servicio, Turno } from "@prisma/client";
+import type { Administrador, Clienta, Configuracion, GiftCard, Servicio, Turno } from "@prisma/client";
 import { formatDuracion, formatPrecio, linkWhatsapp } from "./formato";
 import { fechaHoraLarga } from "./tiempo";
 import { siteUrl } from "./config";
@@ -258,5 +258,34 @@ ${boton(linkGift(g), "Ver e imprimir la gift card")}`);
     subject: `Gift card para ${g.para} · código ${g.codigo}`,
     html,
     text: [`¡La gift card para ${g.para} está activa!`, `Valor: ${valorGift(g)}`, `Código: ${g.codigo}`, vence ? `Vale hasta el ${vence}.` : "", `Se usa al reservar en ${siteUrl()}/reservar`, `Ver e imprimir: ${linkGift(g)}`].filter(Boolean).join("\n"),
+  };
+}
+
+// ─── Panel: recuperar contraseña ───────────────────────────
+
+export function mailRecuperarClave(cfg: Configuracion, a: Administrador, link: string, minutos: number): Mail {
+  const html = layout(cfg, "Elegí una contraseña nueva", `
+${p(`Hola ${esc(a.nombre.split(" ")[0])}, pediste cambiar la contraseña del panel de ${esc(cfg.nombreNegocio)}.`)}
+${boton(link, "Elegir contraseña nueva")}
+${p(`El link sirve una sola vez y vence en ${minutos} minutos.`)}
+${p(`<span style="color:#888">Si no fuiste vos, ignorá este mail: tu contraseña no cambia.</span>`)}`);
+  return {
+    to: a.email,
+    subject: `Recuperar contraseña del panel · ${cfg.nombreNegocio}`,
+    html,
+    text: `Hola ${a.nombre}, para elegir una contraseña nueva entrá a este link (sirve una vez y vence en ${minutos} minutos):\n${link}\n\nSi no fuiste vos, ignorá este mail.`,
+  };
+}
+
+export function mailClaveCambiada(cfg: Configuracion, a: Administrador): Mail {
+  const html = layout(cfg, "Tu contraseña se cambió", `
+${p(`Hola ${esc(a.nombre.split(" ")[0])}, la contraseña de tu usuario del panel (${esc(a.email)}) se cambió recién. Por seguridad se cerró la sesión en los otros dispositivos.`)}
+${p("Si no fuiste vos, avisale enseguida a otra persona del panel para que desactive tu usuario y te ponga una contraseña nueva.")}
+${boton(`${siteUrl()}/admin/login`, "Entrar al panel")}`);
+  return {
+    to: a.email,
+    subject: `Se cambió tu contraseña del panel · ${cfg.nombreNegocio}`,
+    html,
+    text: `Hola ${a.nombre}, la contraseña de tu usuario del panel se cambió recién. Si no fuiste vos, avisale a otra persona del panel.`,
   };
 }

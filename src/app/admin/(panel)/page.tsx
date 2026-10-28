@@ -6,7 +6,7 @@ import { formatPrecio, linkWhatsapp } from "@/lib/formato";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { cambiarEstadoTurno } from "../acciones";
 
-export default async function Agenda({ searchParams }: { searchParams: Promise<{ desde?: string; aviso?: string }> }) {
+export default async function Agenda({ searchParams }: { searchParams: Promise<{ desde?: string; aviso?: string; clave?: string }> }) {
   const sp = await searchParams;
   const hoy = fechaISO(new Date());
   const desde = sp.desde && /^\d{4}-\d{2}-\d{2}$/.test(sp.desde) ? sp.desde : hoy;
@@ -104,6 +104,9 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
         </section>
       )}
 
+      {sp.clave === "nueva" && (
+        <p role="status" className="mb-6 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Listo, tu contraseña nueva quedó guardada.</p>
+      )}
       {sp.aviso && (
         <p role="alert" className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{sp.aviso}</p>
       )}

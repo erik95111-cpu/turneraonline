@@ -19,6 +19,7 @@ reciben la confirmación por **mail** (la profesional también recibe un aviso).
 
 **Panel (`/admin`)**
 - Ingreso con **email y contraseña** por persona (la profesional, una secretaria…). Pantalla **Usuarios** para crear, desactivar o cambiar contraseñas, y **Mi cuenta** para cambiar la propia.
+- **Olvidé mi contraseña**: desde el login, cada usuario pide un link por mail (sirve una vez, vence en 1 hora) y elige una nueva. Se cierran sus otras sesiones y le llega un aviso del cambio.
 - Acceso de emergencia: usuario `admin` + la contraseña `ADMIN_PASSWORD` de Vercel.
 - **Turnos**: lista de todos los turnos (próximos, pasados), con búsqueda y filtro por estado.
 - Agenda semanal: marcar turnos como realizados / no vino / cancelar, botón de WhatsApp.
