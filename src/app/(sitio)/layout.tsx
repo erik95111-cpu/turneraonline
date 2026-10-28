@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getConfig } from "@/lib/config";
 import { prisma } from "@/lib/db";
 import { linkInstagram, linkWhatsapp, resumenHorarios } from "@/lib/formato";
+import { BotonTema } from "@/components/BotonTema";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,10 @@ export default async function SitioLayout({ children }: { children: React.ReactN
             {cfg.videoUrl && <Link href="/#presentacion" className="hover:text-gold-light">Presentación</Link>}
             <Link href="/#contacto" className="hover:text-gold-light">Contacto</Link>
           </nav>
-          <Link href="/reservar" className="btn-oro !px-5 !py-2.5 !text-[0.7rem]">Reservar</Link>
+          <div className="flex items-center gap-2">
+            <BotonTema />
+            <Link href="/reservar" className="btn-oro !px-5 !py-2.5 !text-[0.7rem]">Reservar</Link>
+          </div>
         </div>
       </header>
 

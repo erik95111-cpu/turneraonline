@@ -91,6 +91,39 @@ export async function horariosDisponibles(
   });
 }
 
+/**
+ * Para el calendario: cuántos horarios libres quedan en cada día de atención del mes.
+ * Sólo incluye días en los que se atiende y que están dentro del rango reservable.
+ */
+export async function disponibilidadDelMes(
+  servicioId: string,
+  mes: string,
+  opciones: { sinLimites?: boolean } = {},
+): Promise<Record<string, number>> {
+  if (!/^\d{4}-\d{2}$/.test(mes)) return {};
+  const [y, m] = mes.split("-").map(Number);
+  const diasDelMes = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const franjas = await prisma.horarioAtencion.findMany({ select: { diaSemana: true } });
+  const abiertos = new Set(franjas.map((f) => f.diaSemana));
+  const fechas = Array.from({ length: diasDelMes }, (_, i) => `${mes}-${String(i + 1).padStart(2, "0")}`)
+    .filter((f) => abiertos.has(diaSemana(f)));
+  const resultado: Record<string, number> = {};
+  for (const f of fechas) {
+    const hoy = fechaISO(new Date());
+    if (f < hoy) continue;
+    const libres = await horariosDisponibles(servicioId, f, opciones);
+    // horariosDisponibles devuelve [] también fuera de rango: lo distinguimos
+    if (libres.length || (await dentroDeRango(f, opciones.sinLimites))) resultado[f] = libres.length;
+  }
+  return resultado;
+}
+
+async function dentroDeRango(fecha: string, sinLimites?: boolean): Promise<boolean> {
+  const cfg = await getConfig();
+  const hoy = fechaISO(new Date());
+  return fecha >= hoy && fecha <= sumarDias(hoy, sinLimites ? 366 : cfg.diasMaxReserva);
+}
+
 export const reservaSchema = z.object({
   servicioId: z.string().min(1),
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

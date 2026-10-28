@@ -22,11 +22,7 @@ export default async function ReservarPage({ searchParams }: { searchParams: Pro
   const hoy = fechaISO(new Date());
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 sm:py-16">
-      <div className="mb-10 text-center">
-        <p className="eyebrow">Turnos online</p>
-        <h1 className="mt-4 font-serif text-4xl sm:text-5xl">Reservá tu turno</h1>
-      </div>
+    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
       {servicios.length === 0 || franjas.length === 0 ? (
         <p className="text-center text-piedra">Por el momento no hay turnos disponibles online. Escribinos por WhatsApp.</p>
       ) : (

@@ -18,6 +18,45 @@ html {
   scroll-behavior: smooth;
 }
 
+/* ─── Modo claro ───
+   Se redefinen los mismos colores: fondo crema, texto oscuro y dorados más profundos
+   para que se lean bien. .tema-claro aplica lo mismo dentro del panel. */
+html[data-theme="claro"],
+.tema-claro {
+  --color-ink: #f6f1e8;
+  --color-carbon: #fffcf6;
+  --color-humo: #efe7da;
+  --color-linea: #e2d6c3;
+  --color-cream: #1f1a15;
+  --color-piedra: #6e6459;
+  --color-gold: #a07a3c;
+  --color-gold-light: #85652f;
+  --color-gold-dark: #6e5428;
+  color-scheme: light;
+}
+html[data-theme="claro"] body { background: var(--color-ink); color: var(--color-cream); }
+html[data-theme="claro"] .texto-oro,
+.tema-claro .texto-oro {
+  background-image: linear-gradient(100deg, #8a6a33 0%, #b48c4a 45%, #9a7537 70%, #6e5428 100%);
+}
+/* Zonas que siempre van oscuras (encabezado del panel) */
+.tema-oscuro {
+  --color-ink: #0b0a0c;
+  --color-carbon: #141215;
+  --color-humo: #1d1a1e;
+  --color-linea: #2c282d;
+  --color-cream: #f6f1e9;
+  --color-piedra: #a49d94;
+  --color-gold: #c9a96e;
+  --color-gold-light: #e6cf9f;
+}
+html { color-scheme: dark; }
+
+/* Entrada suave de cada paso de la reserva */
+.paso-entra { animation: paso-entra 0.35s cubic-bezier(0.2, 0.7, 0.2, 1); }
+@keyframes paso-entra { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .paso-entra { animation: none; } }
+
 body {
   background: var(--color-ink);
   color: var(--color-cream);
@@ -50,7 +89,7 @@ body {
   font-weight: 500;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--color-ink);
+  color: #0b0a0c;
   background: linear-gradient(100deg, #b08d57, #ecd6a7 50%, #c9a96e);
   transition: filter 0.2s, transform 0.2s;
 }
@@ -117,6 +156,11 @@ body {
 
 /* ─── Intro animada del inicio ─── */
 .intro {
+  --color-ink: #0b0a0c;
+  --color-linea: #2c282d;
+  --color-piedra: #a49d94;
+  --color-gold: #c9a96e;
+  --color-gold-light: #e6cf9f;
   position: fixed;
   inset: 0;
   z-index: 100;

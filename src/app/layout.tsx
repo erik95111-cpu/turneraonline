@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Montserrat } from "next/font/google";
 import "./globals.css";
 import { siteUrl } from "@/lib/config";
+import { SCRIPT_TEMA } from "@/components/BotonTema";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -37,6 +38,9 @@ export const viewport: Viewport = { themeColor: "#0b0a0c" };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es-AR" className={`${cormorant.variable} ${montserrat.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA }} />
+      </head>
       <body>{children}</body>
     </html>
   );

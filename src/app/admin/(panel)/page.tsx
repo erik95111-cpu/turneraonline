@@ -13,7 +13,30 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(desde, i));
   const ahora = new Date();
 
-  const [cfg, cantidadUsuarios] = await Promise.all([getConfig(), prisma.administrador.count()]);
+  const finHoy = aFechaUTC(sumarDias(hoy, 1), "00:00");
+  const [cfg, cantidadUsuarios, kTurnosHoy, kEsperando, kProximos, masPedido] = await Promise.all([
+    getConfig(),
+    prisma.administrador.count(),
+    prisma.turno.count({ where: { inicio: { gte: aFechaUTC(hoy, "00:00"), lt: finHoy }, estado: { in: ["CONFIRMADO", "PENDIENTE_PAGO", "COMPLETADO"] } } }),
+    prisma.turno.count({ where: { estado: "PENDIENTE_PAGO", expiraEn: { gt: ahora } } }),
+    prisma.turno.count({ where: { inicio: { gte: ahora, lt: aFechaUTC(sumarDias(hoy, 8), "00:00") }, OR: [{ estado: "CONFIRMADO" }, { estado: "PENDIENTE_PAGO", expiraEn: { gt: ahora } }] } }),
+    prisma.turno.groupBy({
+      by: ["servicioId"],
+      where: { createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) }, estado: { not: "CANCELADO" } },
+      _count: { _all: true },
+      orderBy: { _count: { servicioId: "desc" } },
+      take: 1,
+    }),
+  ]);
+  const servicioTop = masPedido[0]
+    ? await prisma.servicio.findUnique({ where: { id: masPedido[0].servicioId }, select: { nombre: true } })
+    : null;
+  const tarjetas: { valor: string; texto: string; link: string; destacar?: boolean }[] = [
+    { valor: String(kTurnosHoy), texto: "Turnos hoy", link: "/admin/turnos?ver=hoy" },
+    { valor: String(kEsperando), texto: "Esperando seña", link: "/admin/turnos?estado=PENDIENTE_PAGO", destacar: kEsperando > 0 },
+    { valor: String(kProximos), texto: "Próximos 7 días", link: "/admin/turnos?ver=7dias" },
+    { valor: servicioTop?.nombre ?? "—", texto: "Más pedido (30 días)", link: "/admin/estadisticas" },
+  ];
   const pendientes: { ok: boolean; texto: string; link: string }[] = [
     { ok: Boolean(cfg.emailProfesional), texto: "Email de la profesional (donde llegan los avisos)", link: "/admin/configuracion" },
     { ok: Boolean(cfg.whatsapp), texto: "WhatsApp (ahí te escriben para abonar la seña)", link: "/admin/configuracion" },
@@ -55,6 +78,16 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
           </form>
           <Link className="btn" href="/admin/turnos/nuevo">+ Nuevo turno</Link>
         </div>
+      </div>
+
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {tarjetas.map((t) => (
+          <Link key={t.texto} href={t.link}
+            className={`card block p-4 transition hover:border-[#c9a96e] ${t.destacar ? "!border-amber-300 !bg-amber-50 ring-1 ring-amber-300" : ""}`}>
+            <p className={`truncate font-serif ${t.valor.length > 3 ? "text-xl leading-8" : "text-3xl"}`}>{t.valor}</p>
+            <p className="text-xs text-[#6b635b]">{t.texto}</p>
+          </Link>
+        ))}
       </div>
 
       {faltan > 0 && (

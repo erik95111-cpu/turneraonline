@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { EstadoTurno, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { fechaHoraLarga } from "@/lib/tiempo";
+import { aFechaUTC, fechaHoraLarga, fechaISO, sumarDias } from "@/lib/tiempo";
 import { formatPrecio, linkWhatsapp } from "@/lib/formato";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { cambiarEstadoTurno } from "../../acciones";
@@ -20,14 +20,15 @@ interface Filtros { ver?: string; estado?: string; q?: string; pagina?: string }
 
 export default async function Turnos({ searchParams }: { searchParams: Promise<Filtros> }) {
   const sp = await searchParams;
-  const ver = sp.ver === "pasados" || sp.ver === "todos" ? sp.ver : "proximos";
+  const VISTAS = ["proximos", "hoy", "manana", "7dias", "30dias", "pasados", "todos"] as const;
+  const ver = (VISTAS as readonly string[]).includes(sp.ver ?? "") ? (sp.ver as (typeof VISTAS)[number]) : "proximos";
   const estado = ESTADOS.some(([e]) => e && e === sp.estado) ? (sp.estado as EstadoTurno) : undefined;
   const q = (sp.q ?? "").trim();
   const pagina = Math.max(1, Number(sp.pagina) || 1);
   const ahora = new Date();
 
   const where: Prisma.TurnoWhereInput = {
-    ...(ver === "proximos" ? { inicio: { gte: ahora } } : ver === "pasados" ? { inicio: { lt: ahora } } : {}),
+    ...rangoDe(ver, ahora),
     ...(estado ? { estado } : {}),
     ...(q
       ? {
@@ -46,7 +47,7 @@ export default async function Turnos({ searchParams }: { searchParams: Promise<F
     prisma.turno.findMany({
       where,
       include: { clienta: true, servicio: true },
-      orderBy: { inicio: ver === "proximos" ? "asc" : "desc" },
+      orderBy: { inicio: ver === "pasados" || ver === "todos" ? "desc" : "asc" },
       skip: (pagina - 1) * POR_PAGINA,
       take: POR_PAGINA,
     }),
@@ -70,7 +71,7 @@ export default async function Turnos({ searchParams }: { searchParams: Promise<F
       </div>
 
       <div className="mb-3 flex flex-wrap gap-1.5">
-        {([["proximos", "Próximos"], ["pasados", "Pasados"], ["todos", "Todos"]] as const).map(([v, t]) => (
+        {([["hoy", "Hoy"], ["manana", "Mañana"], ["7dias", "7 días"], ["30dias", "30 días"], ["proximos", "Próximos"], ["pasados", "Pasados"], ["todos", "Todos"]] as const).map(([v, t]) => (
           <Link key={v} href={link({ ver: v })} className={ver === v ? "btn" : "btn-sec"}>{t}</Link>
         ))}
       </div>
@@ -126,4 +127,19 @@ export default async function Turnos({ searchParams }: { searchParams: Promise<F
       )}
     </div>
   );
+}
+
+/** Filtro de fechas según el botón rápido elegido (en hora de Argentina) */
+function rangoDe(ver: string, ahora: Date): Prisma.TurnoWhereInput {
+  const hoy = fechaISO(ahora);
+  const dia = (n: number) => aFechaUTC(sumarDias(hoy, n), "00:00");
+  switch (ver) {
+    case "hoy": return { inicio: { gte: dia(0), lt: dia(1) } };
+    case "manana": return { inicio: { gte: dia(1), lt: dia(2) } };
+    case "7dias": return { inicio: { gte: dia(0), lt: dia(8) } };
+    case "30dias": return { inicio: { gte: dia(0), lt: dia(31) } };
+    case "pasados": return { inicio: { lt: ahora } };
+    case "todos": return {};
+    default: return { inicio: { gte: ahora } };
+  }
 }
