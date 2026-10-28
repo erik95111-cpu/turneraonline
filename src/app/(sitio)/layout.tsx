@@ -4,6 +4,7 @@ import { getConfig } from "@/lib/config";
 import { prisma } from "@/lib/db";
 import { linkInstagram, linkWhatsapp, resumenHorarios } from "@/lib/formato";
 import { BotonTema } from "@/components/BotonTema";
+import { CortinaDorada } from "@/components/CortinaDorada";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ export default async function SitioLayout({ children }: { children: React.ReactN
       </header>
 
       <main className="flex-1">{children}</main>
+      <CortinaDorada />
 
       <footer id="contacto" className="border-t border-linea bg-carbon">
         <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-3">
