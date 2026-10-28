@@ -4,7 +4,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { salir } from "../acciones";
 
-export const metadata: Metadata = { title: "Panel", robots: { index: false } };
+export const metadata: Metadata = { robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 const LINKS = [
