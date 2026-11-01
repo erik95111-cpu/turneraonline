@@ -107,6 +107,7 @@ ${p(`<strong>${esc(t.clienta.nombre)}</strong> reservó un turno.`)}
 ${detalle(t)}
 ${p(`✉️ ${esc(t.clienta.email ?? "sin mail (avisos por WhatsApp)")}<br>📱 ${wa ? `<a href="${wa}">${esc(t.clienta.telefono)}</a>` : "-"}`)}
 ${t.notasClienta ? p(`<strong>Comentario:</strong> ${esc(t.notasClienta)}`) : ""}
+${t.avisarWhatsapp ? p("📲 Mandale la confirmación por WhatsApp con un toque desde la <strong>Agenda</strong> del panel.") : ""}
 ${boton(`${siteUrl()}/admin`, "Abrir la agenda")}`);
   return {
     to: cfg.emailProfesional,

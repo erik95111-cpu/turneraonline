@@ -8,7 +8,6 @@ import { calcularSena, pideSena } from "./sena";
 import { aFechaUTC, diaSemana, fechaISO, sumarDias } from "./tiempo";
 import { enviarMail } from "./email";
 import { numeroWhatsapp } from "./formato";
-import { enviarWhatsappAutomatico, type TipoAviso } from "./whatsapp";
 import { ErrorReserva } from "./errores";
 import { aplicarGiftCard, devolverGiftCard } from "./giftcards";
 
@@ -161,16 +160,6 @@ const incluir = { clienta: true, servicio: { include: { incluye: { select: { nom
 /** Por dónde se le avisa a la clienta. Sin email, sólo por WhatsApp. */
 export interface Avisos { mail: boolean; whatsapp: boolean }
 
-type TurnoConDatos = Prisma.TurnoGetPayload<{ include: typeof incluir }>;
-
-/** Manda el WhatsApp automático (si está configurado) y anota cuándo se mandó */
-async function avisarPorWhatsapp(turno: TurnoConDatos, tipo: TipoAviso): Promise<void> {
-  if (!turno.avisarWhatsapp) return;
-  if (!(await enviarWhatsappAutomatico(await getConfig(), turno, tipo))) return;
-  const campo = tipo === "confirmacion" ? "confirmacionWaEn" : tipo === "recordatorio" ? "recordatorioWaEn" : null;
-  if (campo) await prisma.turno.update({ where: { id: turno.id }, data: { [campo]: new Date() } });
-}
-
 /** La clienta: por email si lo dejó; si no, por su WhatsApp. No pisa la ficha de una existente. */
 async function buscarOCrearClienta(tx: Tx, d: { nombre: string; email: string; telefono: string }) {
   const whatsapp = numeroWhatsapp(d.telefono);
@@ -248,8 +237,6 @@ export async function crearReserva(
     ...(pendienteSena
       ? [avisos.mail && enviarMail(mailReservaPendienteClienta(cfgActual, turno)), enviarMail(mailNuevaReservaProfesional(cfgActual, turno))]
       : [avisos.mail && enviarMail(mailConfirmacionClienta(cfgActual, turno)), enviarMail(mailNuevoTurnoProfesional(cfgActual, turno))]),
-    // La confirmación por WhatsApp sale sola si está la API; si no, queda el botón de un toque en el panel
-    !pendienteSena && avisarPorWhatsapp(turno, "confirmacion"),
   ]);
   return { turnoId: turno.id, token: turno.token, pendienteSena };
 }
@@ -280,7 +267,6 @@ export async function confirmarSena(turnoId: string): Promise<void> {
   });
   await Promise.all([
     turno.avisarMail && enviarMail(mailConfirmacionClienta(await getConfig(), turno)),
-    avisarPorWhatsapp(turno, "confirmacion"),
   ]);
 }
 
@@ -313,7 +299,6 @@ export async function cancelarTurno(turnoId: string, por: "clienta" | "admin"): 
     await Promise.all([
       turno.avisarMail && enviarMail(mailCancelacion(cfg, turno, "clienta")),
       enviarMail(mailCancelacion(cfg, turno, "profesional")),
-      por === "admin" && avisarPorWhatsapp(turno, "cancelacion"),
     ]);
   }
 }

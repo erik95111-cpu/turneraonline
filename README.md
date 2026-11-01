@@ -74,23 +74,9 @@ Más adelante se puede conectar un dominio propio (ej: `healthyskin.com.ar` en N
 ### Avisos por WhatsApp
 El mail de la clienta es **opcional**: quien no usa mail recibe todo por WhatsApp. En **Nuevo turno** se elige avisar por WhatsApp, mail o ambos.
 
-**Hoy (con un toque, gratis):** en la **Agenda** del panel aparecen los botones “Mandar confirmación por WhatsApp” (al cargar un turno o marcar la seña recibida), “Mandar recordatorio por WhatsApp” (lista de turnos de mañana) y “Avisar la cancelación”. Abren el WhatsApp de la profesional con el mensaje listo; sólo hay que tocar Enviar. Queda anotado cuál se mandó.
+En la **Agenda** del panel aparecen los botones “Mandar confirmación por WhatsApp” (al cargar un turno o marcar la seña recibida), “Mandar recordatorio por WhatsApp” (lista de turnos de mañana) y “Avisar la cancelación”. Abren el WhatsApp de la profesional con el mensaje listo; sólo hay que tocar Enviar. Queda anotado cuál se mandó.
 
-**Automático (WhatsApp Business Cloud API de Meta):** cuando estén estas variables en Vercel, la confirmación, el recordatorio del día anterior y la cancelación salen solos:
-
-| Variable | Valor |
-|---|---|
-| `WHATSAPP_TOKEN` | Token permanente de la app de Meta (usuario del sistema) |
-| `WHATSAPP_PHONE_ID` | “Phone number ID” del número de WhatsApp Business |
-| `WHATSAPP_IDIOMA` | (opcional) idioma de las plantillas, por defecto `es_AR` |
-
-En Meta (WhatsApp Manager → Plantillas) hay que crear y hacer aprobar tres plantillas de categoría **Utilidad** con estos nombres y variables:
-
-- `turno_confirmado`: “Hola {{1}}! Tu turno en {{2}} está confirmado: {{3}} · {{4}}. Dirección: {{5}}. Ver o cancelar: {{6}}”
-- `turno_recordatorio`: “Hola {{1}}! Te recordamos tu turno de mañana en {{2}}: {{3}} · {{4}}. Dirección: {{5}}. Ver o cancelar: {{6}}”
-- `turno_cancelado`: “Hola {{1}}, tu turno en {{2}} del {{3}} ({{4}}) fue cancelado. Si querés otro día, escribinos.”
-
-(Los nombres se pueden cambiar con `WHATSAPP_PLANTILLA_CONFIRMACION`, `WHATSAPP_PLANTILLA_RECORDATORIO` y `WHATSAPP_PLANTILLA_CANCELACION`.) Si Meta rechaza un envío, el botón de un toque sigue disponible en el panel.
+Los mensajes terminan con el link del turno: WhatsApp lo muestra como una **tarjeta con el logo, el día y la hora** (imagen generada en `/api/tarjeta/[id]`). En la confirmación se puede elegir si va el precio. El botón “Imagen” descarga esa tarjeta para mandarla como foto.
 
 ### Recordatorios
 `vercel.json` programa `/api/cron/recordatorios` todos los días a las 10:00 (hora Argentina).

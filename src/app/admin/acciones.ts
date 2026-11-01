@@ -13,7 +13,6 @@ import { guardarCombo } from "@/lib/combos";
 import { activarGiftCard, anularGiftCard, crearGiftCard, giftCardSchema } from "@/lib/giftcards";
 import { aFechaUTC } from "@/lib/tiempo";
 import { numeroWhatsapp } from "@/lib/formato";
-import { whatsappAutomatico } from "@/lib/whatsapp";
 import type { ResultadoReserva } from "@/app/actions/reservas";
 
 const txt = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -68,7 +67,7 @@ export async function cambiarEstadoTurno(fd: FormData) {
   if (antes?.avisarWhatsapp && estado === "SENA_RECIBIDA" && !despues?.confirmacionWaEn) {
     redirect(`/admin?${new URLSearchParams({ avisar: id, ...(desde ? { desde } : {}) })}`);
   }
-  if (antes?.avisarWhatsapp && estado === "CANCELADO" && !whatsappAutomatico()) {
+  if (antes?.avisarWhatsapp && estado === "CANCELADO") {
     redirect(`/admin?${new URLSearchParams({ avisarCancelacion: id, ...(desde ? { desde } : {}) })}`);
   }
 }

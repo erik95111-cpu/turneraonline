@@ -9,11 +9,33 @@ import { mensajeSena } from "@/lib/plantillas-email";
 import { BotonCancelar } from "@/components/BotonCancelar";
 import { IrAWhatsapp } from "@/components/IrAWhatsapp";
 
-export const metadata: Metadata = { title: "Mi turno", robots: { index: false } };
-
 interface Props {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ t?: string; nuevo?: string }>;
+  searchParams: Promise<{ t?: string; nuevo?: string; v?: string }>;
+}
+
+/** Al mandar este link por WhatsApp se ve como una tarjeta con el logo, el día y la hora */
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+  const [{ id }, { t: token, v }] = await Promise.all([params, searchParams]);
+  const base: Metadata = { title: "Mi turno", robots: { index: false, follow: false } };
+  const turno = token ? await prisma.turno.findUnique({ where: { id }, select: { token: true, inicio: true } }) : null;
+  if (!turno || turno.token !== token) return base;
+  const recordatorio = v === "recordatorio";
+  const cuando = fechaHoraLarga(turno.inicio);
+  const titulo = recordatorio ? "Recordatorio de tu turno" : "Tu turno está confirmado";
+  const imagen = `/api/tarjeta/${id}?${new URLSearchParams({ t: token, v: recordatorio ? "recordatorio" : "confirmacion" })}`;
+  return {
+    ...base,
+    title: titulo,
+    openGraph: {
+      title: `${titulo} · MC Healthy Skin`,
+      description: cuando.charAt(0).toUpperCase() + cuando.slice(1),
+      images: [{ url: imagen, width: 1200, height: 630, alt: `${titulo}: ${cuando}` }],
+      type: "website",
+      locale: "es_AR",
+    },
+    twitter: { card: "summary_large_image" },
+  };
 }
 
 export default async function TurnoPage({ params, searchParams }: Props) {
