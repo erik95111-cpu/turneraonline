@@ -10,6 +10,7 @@ import { hashPassword, verificarPassword } from "@/lib/passwords";
 import { ErrorReserva, cancelarTurno, confirmarSena, crearReserva, reservaSchema } from "@/lib/turnos";
 import { probarEnvio } from "@/lib/email";
 import { guardarCombo } from "@/lib/combos";
+import { ErrorClientaExistente, actualizarClienta, alternarEtiqueta, crearClienta } from "@/lib/clientas";
 import { activarGiftCard, anularGiftCard, crearGiftCard, giftCardSchema } from "@/lib/giftcards";
 import { aFechaUTC } from "@/lib/tiempo";
 import { numeroWhatsapp } from "@/lib/formato";
@@ -187,26 +188,63 @@ export async function eliminarBloqueo(fd: FormData) {
 
 // ─── Clientas ──────────────────────────────────────────────
 
-export async function guardarFicha(fd: FormData) {
+const datosClienta = (fd: FormData) => ({
+  nombre: txt(fd, "nombre"),
+  telefono: txt(fd, "telefono"),
+  email: txt(fd, "email"),
+  fechaNacimiento: txt(fd, "fechaNacimiento"),
+  direccion: txt(fd, "direccion"),
+  tipoPiel: txt(fd, "tipoPiel"),
+  alergias: txt(fd, "alergias"),
+});
+
+/** Alta de una clienta a mano */
+export async function crearClientaAccion(fd: FormData) {
+  const yo = await requireAdmin();
+  let id = "";
+  try {
+    id = (await crearClienta(datosClienta(fd), txt(fd, "nota"), yo.nombre)).id;
+  } catch (err) {
+    if (err instanceof ErrorClientaExistente) redirect(`/admin/clientas/${err.id}?${new URLSearchParams({ aviso: err.message })}`);
+    if (!(err instanceof ErrorReserva)) throw err;
+    redirect(`/admin/clientas/nueva?${new URLSearchParams({ error: err.message })}`);
+  }
+  revalidatePath("/admin/clientas");
+  redirect(`/admin/clientas/${id}?ok=${encodeURIComponent("Clienta guardada")}`);
+}
+
+export async function editarClientaAccion(fd: FormData) {
   await requireAdmin();
   const id = txt(fd, "id");
-  const email = txt(fd, "email").toLowerCase();
-  const emailValido = !email || z.string().email().safeParse(email).success;
-  // Si otra clienta ya usa ese mail, no se cambia (el mail identifica a cada clienta)
-  const ocupado = email ? await prisma.clienta.findFirst({ where: { email, NOT: { id } } }) : null;
-  await prisma.clienta.update({
-    where: { id },
-    data: {
-      ...(emailValido && !ocupado ? { email: email || null } : {}),
-      nombre: txt(fd, "nombre"),
-      telefono: txt(fd, "telefono"),
-      whatsapp: numeroWhatsapp(txt(fd, "telefono")),
-      tipoPiel: txt(fd, "tipoPiel"),
-      alergias: txt(fd, "alergias"),
-      notas: txt(fd, "notas"),
-    },
-  });
+  try {
+    await actualizarClienta(id, datosClienta(fd));
+  } catch (err) {
+    if (!(err instanceof ErrorReserva)) throw err;
+    redirect(`/admin/clientas/${id}?${new URLSearchParams({ editar: "1", error: err.message })}`);
+  }
   revalidatePath(`/admin/clientas/${id}`);
+  redirect(`/admin/clientas/${id}?ok=${encodeURIComponent("Datos guardados")}`);
+}
+
+export async function etiquetaClientaAccion(fd: FormData) {
+  await requireAdmin();
+  const id = txt(fd, "id");
+  await alternarEtiqueta(id, txt(fd, "etiqueta"));
+  revalidatePath(`/admin/clientas/${id}`);
+}
+
+export async function agregarNotaAccion(fd: FormData) {
+  const yo = await requireAdmin();
+  const id = txt(fd, "id");
+  const texto = txt(fd, "texto").slice(0, 2000);
+  if (texto) await prisma.notaClienta.create({ data: { clientaId: id, texto, autor: yo.nombre } });
+  revalidatePath(`/admin/clientas/${id}`);
+}
+
+export async function borrarNotaAccion(fd: FormData) {
+  await requireAdmin();
+  const nota = await prisma.notaClienta.delete({ where: { id: txt(fd, "notaId") } });
+  revalidatePath(`/admin/clientas/${nota.clientaId}`);
 }
 
 // ─── Configuración ─────────────────────────────────────────

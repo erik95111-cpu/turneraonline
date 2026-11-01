@@ -77,22 +77,40 @@ model Bloqueo {
 }
 
 model Clienta {
-  id        String   @id @default(cuid())
-  nombre    String
+  id              String        @id @default(cuid())
+  nombre          String
   /// Opcional: hay clientas que sólo usan WhatsApp
-  email     String?  @unique
-  telefono  String
+  email           String?       @unique
+  telefono        String
   /// Celular normalizado para WhatsApp (549…); identifica a quien reserva sin mail
-  whatsapp  String   @default("")
+  whatsapp        String        @default("")
   /// Ficha: datos que la profesional completa desde el panel
-  tipoPiel  String   @default("")
-  alergias  String   @default("")
-  notas     String   @default("")
-  turnos    Turno[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  tipoPiel        String        @default("")
+  alergias        String        @default("")
+  /// "yyyy-MM-dd" (vacío si no se sabe)
+  fechaNacimiento String        @default("")
+  direccion       String        @default("")
+  /// Etiquetas libres: VIP, Adeuda, Puntual…
+  etiquetas       String[]      @default([])
+  registroNotas   NotaClienta[]
+  notas           String        @default("")
+  turnos          Turno[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@index([whatsapp])
+}
+
+/// Nota privada de la profesional sobre una clienta (queda el registro con fecha)
+model NotaClienta {
+  id        String   @id @default(cuid())
+  clientaId String
+  clienta   Clienta  @relation(fields: [clientaId], references: [id], onDelete: Cascade)
+  texto     String
+  autor     String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([clientaId, createdAt])
 }
 
 enum EstadoTurno {

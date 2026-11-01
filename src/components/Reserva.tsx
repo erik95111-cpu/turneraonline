@@ -33,6 +33,8 @@ interface Props {
   tema?: "oscuro" | "claro";
   /** Código de gift card que viene en el link (?gift=) */
   giftInicial?: string;
+  /** Datos de la clienta ya cargados (“Ingresar reserva” desde su ficha) */
+  clientaInicial?: { nombre: string; telefono: string; email: string };
 }
 
 type EstadoGift = { ok: true; codigo: string; para: string; cubre: number; resta: number } | { ok: false; error: string };
@@ -74,7 +76,7 @@ export function Reserva(p: Props) {
   const [error, setError] = useState<string | null>(null);
   const [errorCarga, setErrorCarga] = useState(false);
   const [recarga, setRecarga] = useState(0);
-  const [form, setForm] = useState(VACIO);
+  const [form, setForm] = useState(p.clientaInicial ? { ...VACIO, ...p.clientaInicial } : VACIO);
   const [trampa, setTrampa] = useState("");
   // Sólo en el panel: por dónde avisarle a la clienta
   const [avisos, setAvisos] = useState({ whatsapp: true, mail: true });

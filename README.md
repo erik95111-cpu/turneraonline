@@ -27,7 +27,7 @@ reciben la confirmación por **mail** (la profesional también recibe un aviso).
 - Tratamientos: alta, edición, precios, duración, ocultar.
 - **Combos / packs**: la profesional elige varios tratamientos y un precio especial; la duración se suma sola. En la web aparecen primero, con lo que incluyen y cuánto se ahorra, y se reservan como un turno.
 - Horarios de atención (varias franjas por día) y días bloqueados (vacaciones, feriados).
-- Clientas: ficha con tipo de piel, alergias, notas privadas e historial.
+- **Clientas**: alta a mano, ficha con contacto (copiar teléfono/mail), fecha de nacimiento (días para el cumple y cumpleaños de la semana), dirección, tipo de piel y alergias; etiquetas (VIP, Adeuda, Puntual, Llega tarde, Ausente sin aviso, “Nueva” automática y propias) con filtro; registro de notas privadas con fecha; historial de turnos con seña y avisos enviados; “Ingresar reserva” con sus datos cargados.
 - Gift cards: pedidos, “Pago recibido”, anular, saldo, en qué turno se usó y venta en persona.
 - Estadísticas mensuales: ingresos, turnos, ausencias, tratamientos más pedidos.
 - Configuración: datos de contacto, video, seña, reglas de reserva, política de cancelación.
