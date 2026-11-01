@@ -6,11 +6,13 @@ import { reservarDesdePanel } from "../../../acciones";
 
 export default async function NuevoTurno({ searchParams }: { searchParams: Promise<{ clienta?: string }> }) {
   const { clienta: clientaId } = await searchParams;
-  const [servicios, franjas, clienta] = await Promise.all([
+  const [servicios, franjas, clienta, clientas] = await Promise.all([
     serviciosParaReservar(),
     prisma.horarioAtencion.findMany({ select: { diaSemana: true } }),
-    clientaId ? prisma.clienta.findUnique({ where: { id: clientaId }, select: { nombre: true, telefono: true, email: true } }) : null,
+    clientaId ? prisma.clienta.findUnique({ where: { id: clientaId }, select: { id: true, nombre: true, telefono: true, email: true } }) : null,
+    prisma.clienta.findMany({ select: { id: true, nombre: true, telefono: true, email: true }, orderBy: { nombre: "asc" } }),
   ]);
+  const elegible = (c: { id: string; nombre: string; telefono: string; email: string | null }) => ({ ...c, email: c.email ?? "" });
   const hoy = fechaISO(new Date());
   return (
     <div className="mx-auto max-w-4xl">
@@ -27,7 +29,8 @@ export default async function NuevoTurno({ searchParams }: { searchParams: Promi
         sena={{ tipo: "NINGUNA", valor: 0, activa: false }}
         politica=""
         accion={reservarDesdePanel}
-        clientaInicial={clienta ? { nombre: clienta.nombre, telefono: clienta.telefono, email: clienta.email ?? "" } : undefined}
+        clientaInicial={clienta ? elegible(clienta) : undefined}
+        clientas={clientas.map(elegible)}
       />
     </div>
   );

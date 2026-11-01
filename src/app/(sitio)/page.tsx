@@ -2,10 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
-import { formatDuracion, formatPrecio } from "@/lib/formato";
+import { formatPrecio } from "@/lib/formato";
 import { VideoPresentacion } from "@/components/VideoPresentacion";
 import { Intro } from "@/components/Intro";
 import { TarjetaRegalo } from "@/components/TarjetaRegalo";
+import { CatalogoTratamientos } from "@/components/CatalogoTratamientos";
 import { calcularSena, pideSena } from "@/lib/sena";
 import { ahorroCombo, conIncluye, textoIncluye } from "@/lib/combos";
 
@@ -84,43 +85,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ i
           <p className="mt-10 text-center text-piedra">Muy pronto vas a ver acá todos los tratamientos.</p>
         )}
 
-        {categorias.map((cat) => (
-          <div key={cat} className="mt-14">
-            {categorias.length > 1 && (
-              <h3 className="mb-6 flex items-center gap-4 font-serif text-2xl text-gold-light">
-                {cat}
-                <span className="h-px flex-1 bg-linea" />
-              </h3>
-            )}
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {servicios.filter((s) => s.categoria === cat).map((s) => (
-                <article
-                  key={s.id}
-                  className="group flex flex-col rounded-2xl border border-linea bg-carbon p-6 transition hover:border-gold/50"
-                >
-                  <h4 className="font-serif text-2xl leading-tight">{s.nombre}</h4>
-                  {s.esCombo && <p className="mt-2 text-sm text-gold-light">Incluye: {textoIncluye(s)}</p>}
-                  {s.descripcion && <p className="mt-3 flex-1 text-sm leading-relaxed text-piedra">{s.descripcion}</p>}
-                  <div className="mt-6 flex items-end justify-between border-t border-linea pt-4">
-                    <div>
-                      <p className="text-xs tracking-widest text-piedra uppercase">{formatDuracion(s.duracionMin)}</p>
-                      <p className="mt-1 font-serif text-2xl text-gold-light">{formatPrecio(s.precio)}</p>
-                      {s.esCombo && ahorroCombo(s).ahorro > 0 && (
-                        <p className="text-xs text-piedra"><s>{formatPrecio(ahorroCombo(s).separado)}</s> · ahorrás {formatPrecio(ahorroCombo(s).ahorro)}</p>
-                      )}
-                      {conSena && (
-                        <p className="text-xs text-piedra">Seña {formatPrecio(calcularSena(s.precio, cfg.senaTipo, cfg.senaValor))}</p>
-                      )}
-                    </div>
-                    <Link href={`/reservar?servicio=${s.id}`} className="btn-linea !px-4 !py-2 !text-[0.65rem]">
-                      Reservar
-                    </Link>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        ))}
+        {servicios.length > 0 && (
+          <CatalogoTratamientos
+            categorias={categorias}
+            items={servicios.map((s) => ({
+              id: s.id,
+              nombre: s.nombre,
+              descripcion: s.descripcion,
+              categoria: s.categoria,
+              duracionMin: s.duracionMin,
+              precio: s.precio,
+              ...(s.esCombo ? { incluye: textoIncluye(s), ...ahorroCombo(s) } : {}),
+              sena: conSena ? calcularSena(s.precio, cfg.senaTipo, cfg.senaValor) : 0,
+            }))}
+          />
+        )}
       </section>
 
       {/* ─── Cómo funciona ─── */}

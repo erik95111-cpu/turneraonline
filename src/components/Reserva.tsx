@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { TipoSena } from "@prisma/client";
 import { Calendario } from "./Calendario";
+import { ElegirClienta, type ClientaElegible } from "./ElegirClienta";
 import { formatDuracion, formatPrecio } from "@/lib/formato";
 import { calcularSena } from "@/lib/sena";
 import { DIAS, MESES } from "@/lib/dias";
@@ -34,7 +35,9 @@ interface Props {
   /** Código de gift card que viene en el link (?gift=) */
   giftInicial?: string;
   /** Datos de la clienta ya cargados (“Ingresar reserva” desde su ficha) */
-  clientaInicial?: { nombre: string; telefono: string; email: string };
+  clientaInicial?: ClientaElegible;
+  /** Sólo en el panel: todas las clientas, para elegir a quién es el turno */
+  clientas?: ClientaElegible[];
 }
 
 type EstadoGift = { ok: true; codigo: string; para: string; cubre: number; resta: number } | { ok: false; error: string };
@@ -76,7 +79,12 @@ export function Reserva(p: Props) {
   const [error, setError] = useState<string | null>(null);
   const [errorCarga, setErrorCarga] = useState(false);
   const [recarga, setRecarga] = useState(0);
-  const [form, setForm] = useState(p.clientaInicial ? { ...VACIO, ...p.clientaInicial } : VACIO);
+  const [form, setForm] = useState(p.clientaInicial ? { ...VACIO, nombre: p.clientaInicial.nombre, telefono: p.clientaInicial.telefono, email: p.clientaInicial.email } : VACIO);
+  const [clientaElegida, setClientaElegida] = useState<ClientaElegible | null>(p.clientaInicial ?? null);
+  function elegirClienta(c: ClientaElegible | null) {
+    setClientaElegida(c);
+    setForm((f) => (c ? { ...f, nombre: c.nombre, telefono: c.telefono, email: c.email } : { ...f, nombre: "", telefono: "", email: "" }));
+  }
   const [trampa, setTrampa] = useState("");
   // Sólo en el panel: por dónde avisarle a la clienta
   const [avisos, setAvisos] = useState({ whatsapp: true, mail: true });
@@ -252,6 +260,8 @@ export function Reserva(p: Props) {
             <p className="mt-3 max-w-sm text-sm text-piedra">Elegí el tratamiento, el sábado y el horario. Te llega la confirmación por mail.</p>
           </>
         )}
+
+        {panel && p.clientas && <ElegirClienta clientas={p.clientas} elegida={clientaElegida} onElegir={elegirClienta} />}
 
         {/* Progreso compacto (celular) */}
         <div className="mt-6 lg:hidden" aria-hidden="true">
