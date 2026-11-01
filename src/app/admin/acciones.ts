@@ -12,6 +12,8 @@ import { probarEnvio } from "@/lib/email";
 import { guardarCombo } from "@/lib/combos";
 import { activarGiftCard, anularGiftCard, crearGiftCard, giftCardSchema } from "@/lib/giftcards";
 import { aFechaUTC } from "@/lib/tiempo";
+import { numeroWhatsapp } from "@/lib/formato";
+import { whatsappAutomatico } from "@/lib/whatsapp";
 import type { ResultadoReserva } from "@/app/actions/reservas";
 
 const txt = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -28,11 +30,22 @@ export async function salir() {
 
 // ─── Turnos ────────────────────────────────────────────────
 
+/** Se tocó el botón de WhatsApp de un turno: queda anotado cuándo se mandó */
+export async function marcarAvisoWhatsapp(turnoId: string, tipo: "confirmacion" | "recordatorio") {
+  await requireAdmin();
+  await prisma.turno.update({
+    where: { id: turnoId },
+    data: tipo === "confirmacion" ? { confirmacionWaEn: new Date() } : { recordatorioWaEn: new Date() },
+  });
+  revalidatePath("/admin");
+}
+
 export async function cambiarEstadoTurno(fd: FormData) {
   await requireAdmin();
   const id = txt(fd, "id");
   const estado = txt(fd, "estado") as EstadoTurno | "SENA_RECIBIDA";
   const desde = txt(fd, "desde");
+  const antes = await prisma.turno.findUnique({ where: { id }, select: { avisarWhatsapp: true, confirmacionWaEn: true } });
   let aviso = "";
   if (estado === "CANCELADO" || estado === "SENA_RECIBIDA") {
     try {
@@ -50,16 +63,27 @@ export async function cambiarEstadoTurno(fd: FormData) {
     const q = new URLSearchParams({ aviso, ...(desde ? { desde } : {}) });
     redirect(`/admin?${q}`);
   }
+  // Para avisarle a la clienta por WhatsApp con un toque (si no salió solo)
+  const despues = await prisma.turno.findUnique({ where: { id }, select: { confirmacionWaEn: true } });
+  if (antes?.avisarWhatsapp && estado === "SENA_RECIBIDA" && !despues?.confirmacionWaEn) {
+    redirect(`/admin?${new URLSearchParams({ avisar: id, ...(desde ? { desde } : {}) })}`);
+  }
+  if (antes?.avisarWhatsapp && estado === "CANCELADO" && !whatsappAutomatico()) {
+    redirect(`/admin?${new URLSearchParams({ avisarCancelacion: id, ...(desde ? { desde } : {}) })}`);
+  }
 }
 
 export async function reservarDesdePanel(input: unknown): Promise<ResultadoReserva> {
   await requireAdmin();
   const parsed = reservaSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  const pedido = (input ?? {}) as { avisoWhatsapp?: unknown; avisoMail?: unknown };
+  const avisos = { whatsapp: pedido.avisoWhatsapp !== false, mail: pedido.avisoMail !== false };
   try {
-    await crearReserva(parsed.data, { porAdmin: true, sinSena: true });
+    const r = await crearReserva(parsed.data, { porAdmin: true, sinSena: true, avisos });
     refrescar();
-    return { ok: true, url: `/admin?desde=${parsed.data.fecha}` };
+    // La agenda muestra el botón para mandarle la confirmación por WhatsApp con un toque
+    return { ok: true, url: `/admin?${new URLSearchParams({ desde: parsed.data.fecha, ...(avisos.whatsapp ? { avisar: r.turnoId } : {}) })}` };
   } catch (err) {
     if (err instanceof ErrorReserva) return { ok: false, error: err.message };
     throw err;
@@ -167,11 +191,17 @@ export async function eliminarBloqueo(fd: FormData) {
 export async function guardarFicha(fd: FormData) {
   await requireAdmin();
   const id = txt(fd, "id");
+  const email = txt(fd, "email").toLowerCase();
+  const emailValido = !email || z.string().email().safeParse(email).success;
+  // Si otra clienta ya usa ese mail, no se cambia (el mail identifica a cada clienta)
+  const ocupado = email ? await prisma.clienta.findFirst({ where: { email, NOT: { id } } }) : null;
   await prisma.clienta.update({
     where: { id },
     data: {
+      ...(emailValido && !ocupado ? { email: email || null } : {}),
       nombre: txt(fd, "nombre"),
       telefono: txt(fd, "telefono"),
+      whatsapp: numeroWhatsapp(txt(fd, "telefono")),
       tipoPiel: txt(fd, "tipoPiel"),
       alergias: txt(fd, "alergias"),
       notas: txt(fd, "notas"),

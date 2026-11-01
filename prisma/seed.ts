@@ -5,6 +5,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { completarVariablesDB } from "../src/lib/env-db";
+import { numeroWhatsapp } from "../src/lib/formato";
 
 completarVariablesDB();
 
@@ -52,6 +53,13 @@ async function main() {
     await prisma.servicio.createMany({ data: servicios.map((s, i) => ({ ...s, orden: i })) });
     console.log(`✓ ${servicios.length} tratamientos`);
   }
+
+  // Clientas cargadas antes de que existiera el campo: se completa su WhatsApp normalizado
+  const sinWhatsapp = await prisma.clienta.findMany({ where: { whatsapp: "", NOT: { telefono: "" } }, select: { id: true, telefono: true } });
+  for (const c of sinWhatsapp) {
+    await prisma.clienta.update({ where: { id: c.id }, data: { whatsapp: numeroWhatsapp(c.telefono) } });
+  }
+  if (sinWhatsapp.length) console.log(`✓ WhatsApp normalizado de ${sinWhatsapp.length} clientas`);
 
   if ((await prisma.horarioAtencion.count()) === 0) {
     // La profesional atiende sólo los sábados (se cambia desde /admin/horarios)

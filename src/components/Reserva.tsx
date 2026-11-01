@@ -76,6 +76,8 @@ export function Reserva(p: Props) {
   const [recarga, setRecarga] = useState(0);
   const [form, setForm] = useState(VACIO);
   const [trampa, setTrampa] = useState("");
+  // Sólo en el panel: por dónde avisarle a la clienta
+  const [avisos, setAvisos] = useState({ whatsapp: true, mail: true });
   const [giftCodigo, setGiftCodigo] = useState(p.giftInicial ?? "");
   const [gift, setGift] = useState<EstadoGift | null>(null);
   const [validandoGift, setValidandoGift] = useState(false);
@@ -200,7 +202,8 @@ export function Reserva(p: Props) {
     if (!servicio || !fecha || !hora) return;
     setError(null);
     startTransition(async () => {
-      const r = await p.accion({ servicioId: servicio.id, fecha, hora, ...form, giftCard: giftOk?.codigo ?? "" }, trampa);
+      const datos = { servicioId: servicio.id, fecha, hora, ...form, giftCard: giftOk?.codigo ?? "" };
+      const r = await p.accion(panel ? { ...datos, avisoWhatsapp: avisos.whatsapp, avisoMail: avisos.mail && Boolean(form.email.trim()) } : datos, trampa);
       if (r.ok) {
         window.location.href = r.url;
         return;
@@ -388,13 +391,29 @@ export function Reserva(p: Props) {
                 <input id="nombre" name="nombre" required minLength={2} autoComplete="name" className="campo" {...campoForm("nombre")} />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs text-piedra" htmlFor="email">Email</label>
-                <input id="email" name="email" type="email" required autoComplete="email" className="campo" {...campoForm("email")} />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs text-piedra" htmlFor="telefono">WhatsApp / Teléfono</label>
+                <label className="mb-1.5 block text-xs text-piedra" htmlFor="telefono">WhatsApp</label>
                 <input id="telefono" name="telefono" type="tel" required minLength={6} autoComplete="tel" placeholder="Ej: 11 2345 6789" className="campo" {...campoForm("telefono")} />
               </div>
+              <div>
+                <label className="mb-1.5 block text-xs text-piedra" htmlFor="email">Email (opcional)</label>
+                <input id="email" name="email" type="email" autoComplete="email" className="campo" {...campoForm("email")} />
+                {!panel && <p className="mt-1 text-xs text-piedra">¿No usás mail? Dejalo vacío: te avisamos por WhatsApp.</p>}
+              </div>
+              {panel && (
+                <fieldset className="sm:col-span-2">
+                  <legend className="mb-1.5 block text-xs text-piedra">Avisarle a la clienta por</legend>
+                  <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-cream">
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" checked={avisos.whatsapp} onChange={(e) => setAvisos((a) => ({ ...a, whatsapp: e.target.checked }))} />
+                      WhatsApp
+                    </label>
+                    <label className={`flex items-center gap-2 ${form.email.trim() ? "" : "opacity-50"}`}>
+                      <input type="checkbox" disabled={!form.email.trim()} checked={avisos.mail && Boolean(form.email.trim())} onChange={(e) => setAvisos((a) => ({ ...a, mail: e.target.checked }))} />
+                      Mail {!form.email.trim() && "(cargá un email)"}
+                    </label>
+                  </div>
+                </fieldset>
+              )}
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-xs text-piedra" htmlFor="notas">Comentarios (opcional)</label>
                 <textarea id="notas" name="notas" rows={3} maxLength={500} placeholder="Alergias, consultas, si es tu primera vez…" className="campo" {...campoForm("notas")} />
@@ -435,7 +454,8 @@ export function Reserva(p: Props) {
                   ["Día", `${mayuscula(fechaTexto(fecha))}, ${hora} hs`],
                   ["Duración", formatDuracion(servicio.duracionMin)],
                   ["Precio", formatPrecio(servicio.precio)],
-                  ["A nombre de", `${form.nombre} · ${form.email}`],
+                  ["A nombre de", [form.nombre, form.telefono, form.email.trim()].filter(Boolean).join(" · ")],
+                  ...(panel ? [["Aviso a la clienta", [avisos.whatsapp && "WhatsApp", avisos.mail && form.email.trim() && "Mail"].filter(Boolean).join(" y ") || "Ninguno"]] : []),
                   ...(montoSena > 0 ? [["Seña para reservar", `${formatPrecio(montoSena)} (se abona por WhatsApp)`]] : []),
                   ...(giftOk ? [["Gift card", `${giftOk.codigo} · cubre ${formatPrecio(giftOk.cubre)}`]] : []),
                   ...(giftOk && giftOk.resta > 0 ? [["A abonar en la sesión", formatPrecio(giftOk.resta)]] : []),

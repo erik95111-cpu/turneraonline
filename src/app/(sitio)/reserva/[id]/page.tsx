@@ -30,7 +30,11 @@ export default async function TurnoPage({ params, searchParams }: Props) {
   const futuro = turno.inicio > ahora;
 
   const estados = {
-    CONFIRMADO: { icono: "✓", titulo: "¡Turno confirmado!", texto: `Te enviamos los detalles a ${turno.clienta.email}.` },
+    CONFIRMADO: {
+      icono: "✓",
+      titulo: "¡Turno confirmado!",
+      texto: turno.clienta.email && turno.avisarMail ? `Te enviamos los detalles a ${turno.clienta.email}.` : "Te vamos a escribir por WhatsApp con los detalles. Guardá este link para ver o cancelar tu turno.",
+    },
     PENDIENTE_PAGO: vencido
       ? { icono: "!", titulo: "La reserva venció", texto: "No se abonó la seña a tiempo y el horario se liberó. Si ya la abonaste, escribinos por WhatsApp." }
       : { icono: "…", titulo: "¡Turno reservado!", texto: "Para confirmarlo, aboná la seña por WhatsApp. Ahí te pasamos los datos de pago." },
@@ -72,7 +76,9 @@ export default async function TurnoPage({ params, searchParams }: Props) {
               <IrAWhatsapp href={linkWhatsapp(cfg.whatsapp, mensajeSena(turno))} turnoId={turno.id} autoAbrir={nuevo === "1"} />
             )}
             <p className="text-center text-xs text-piedra">
-              Te mandamos los datos de la reserva a {turno.clienta.email}. Cuando confirmemos la seña te llega otro mail.
+              {turno.clienta.email && turno.avisarMail
+                ? `Te mandamos los datos de la reserva a ${turno.clienta.email}. Cuando confirmemos la seña te llega otro mail.`
+                : "Cuando confirmemos la seña te escribimos por WhatsApp. Guardá este link para ver o cancelar tu turno."}
             </p>
           </div>
         )}

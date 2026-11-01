@@ -22,7 +22,7 @@ export default async function FichaClienta({ params }: { params: Promise<{ id: s
         <h1 className="font-serif text-3xl">{c.nombre}</h1>
         <div className="flex gap-2">
           {c.telefono && <a className="btn-sec" href={linkWhatsapp(c.telefono)} target="_blank" rel="noopener">WhatsApp</a>}
-          <a className="btn-sec" href={`mailto:${c.email}`}>Email</a>
+          {c.email && <a className="btn-sec" href={`mailto:${c.email}`}>Email</a>}
         </div>
       </div>
 
@@ -31,8 +31,11 @@ export default async function FichaClienta({ params }: { params: Promise<{ id: s
           <input type="hidden" name="id" value={c.id} />
           <h2 className="font-semibold">Ficha</h2>
           <div><label className="lbl">Nombre</label><input name="nombre" defaultValue={c.nombre} className="input" /></div>
-          <div><label className="lbl">Email</label><input value={c.email} disabled className="input bg-[#f6f1e9]" /></div>
-          <div><label className="lbl">Teléfono</label><input name="telefono" defaultValue={c.telefono} className="input" /></div>
+          <div>
+            <label className="lbl">Email (opcional)</label>
+            <input name="email" type="email" defaultValue={c.email ?? ""} placeholder="Sin mail: los avisos van por WhatsApp" className="input" />
+          </div>
+          <div><label className="lbl">WhatsApp / Teléfono</label><input name="telefono" defaultValue={c.telefono} className="input" /></div>
           <div>
             <label className="lbl">Tipo de piel</label>
             <input name="tipoPiel" list="tipos-piel" defaultValue={c.tipoPiel} className="input" />

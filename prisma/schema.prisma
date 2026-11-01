@@ -79,8 +79,11 @@ model Bloqueo {
 model Clienta {
   id        String   @id @default(cuid())
   nombre    String
-  email     String   @unique
+  /// Opcional: hay clientas que sólo usan WhatsApp
+  email     String?  @unique
   telefono  String
+  /// Celular normalizado para WhatsApp (549…); identifica a quien reserva sin mail
+  whatsapp  String   @default("")
   /// Ficha: datos que la profesional completa desde el panel
   tipoPiel  String   @default("")
   alergias  String   @default("")
@@ -88,6 +91,8 @@ model Clienta {
   turnos    Turno[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([whatsapp])
 }
 
 enum EstadoTurno {
@@ -119,6 +124,12 @@ model Turno {
   /// Token secreto para que la clienta vea/cancele su turno desde el mail
   token               String      @unique @default(cuid())
   recordatorioEnviado Boolean     @default(false)
+  /// Por dónde se avisa a la clienta (confirmación y recordatorio)
+  avisarMail          Boolean     @default(true)
+  avisarWhatsapp      Boolean     @default(true)
+  /// Cuándo se mandó por WhatsApp (con un toque desde el panel o automático)
+  confirmacionWaEn    DateTime?
+  recordatorioWaEn    DateTime?
   creadoPorAdmin      Boolean     @default(false)
   /// Gift card con la que se pagó (todo o parte) y cuánto se descontó de ella
   giftCardId          String?

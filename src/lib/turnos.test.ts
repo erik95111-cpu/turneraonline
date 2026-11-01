@@ -146,6 +146,41 @@ d("circuito de reservas", async () => {
     expect(t.reservaSchema.safeParse({ ...datos(), hora: "10" }).success).toBe(false);
   });
 
+  describe("clientas sin mail (avisos por WhatsApp)", () => {
+    it("el mail es opcional; si lo ponen tiene que ser válido", () => {
+      expect(t.reservaSchema.safeParse({ ...datos(), email: "" }).success).toBe(true);
+      expect(t.reservaSchema.safeParse({ ...datos(), email: undefined }).success).toBe(true);
+      expect(t.reservaSchema.safeParse({ ...datos(), email: "no-es-mail" }).success).toBe(false);
+    });
+
+    it("reserva sin mail: guarda su WhatsApp, avisa a la profesional y no intenta mandarle mail", async () => {
+      const r = await t.crearReserva(datos({ email: "", nombre: "Elena Ruiz", telefono: "11 15 2222-3333" }));
+      const turno = await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId }, include: { clienta: true } });
+      expect(turno.clienta.email).toBeNull();
+      expect(turno.clienta.whatsapp).toBe("5491122223333");
+      expect(turno.avisarMail).toBe(false);
+      expect(turno.avisarWhatsapp).toBe(true);
+      expect(mails.map((m) => m.to)).toEqual(["pro@example.com"]);
+    });
+
+    it("la reconoce por su WhatsApp aunque lo escriba distinto, y si después deja mail se lo suma", async () => {
+      const r1 = await t.crearReserva(datos({ email: "", nombre: "Elena Ruiz", telefono: "11 2222-3333", hora: "09:00" }));
+      const r2 = await t.crearReserva(datos({ email: "", nombre: "Elena", telefono: "+54 9 11 2222 3333", hora: "15:00" }));
+      const r3 = await t.crearReserva(datos({ email: "Elena@Example.com", nombre: "Elena", telefono: "1122223333", hora: "16:00" }));
+      const ids = await prisma.turno.findMany({ where: { id: { in: [r1.turnoId, r2.turnoId, r3.turnoId] } }, select: { clientaId: true } });
+      expect(new Set(ids.map((x) => x.clientaId)).size).toBe(1);
+      const c = await prisma.clienta.findUniqueOrThrow({ where: { id: ids[0].clientaId } });
+      expect(c.email).toBe("elena@example.com");
+      expect(c.nombre).toBe("Elena Ruiz"); // no se pisa la ficha
+    });
+
+    it("desde el panel se puede elegir no mandar mail aunque tenga", async () => {
+      const r = await t.crearReserva(datos(), { porAdmin: true, sinSena: true, avisos: { mail: false, whatsapp: true } });
+      expect((await prisma.turno.findUniqueOrThrow({ where: { id: r.turnoId } })).avisarMail).toBe(false);
+      expect(mails.map((m) => m.to)).toEqual(["pro@example.com"]);
+    });
+  });
+
   describe("con seña por WhatsApp", () => {
     beforeEach(async () => {
       await prisma.configuracion.update({ where: { id: 1 }, data: { whatsapp: "9 11 6405-2481" } });

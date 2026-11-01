@@ -4,9 +4,14 @@ import { aFechaUTC, fechaHoraLarga, fechaISO, fechaLarga, horaAR, sumarDias } fr
 import { getConfig } from "@/lib/config";
 import { formatPrecio, linkWhatsapp } from "@/lib/formato";
 import { EstadoBadge } from "@/components/EstadoBadge";
+import { BotonAvisoWhatsapp } from "@/components/BotonAvisoWhatsapp";
+import { linkAvisoWhatsapp, whatsappAutomatico } from "@/lib/whatsapp";
 import { cambiarEstadoTurno } from "../acciones";
 
-export default async function Agenda({ searchParams }: { searchParams: Promise<{ desde?: string; aviso?: string; clave?: string }> }) {
+/** Lo que hace falta para armar el mensaje de WhatsApp de un turno */
+const datosAviso = { clienta: true, servicio: { include: { incluye: { select: { nombre: true } } } }, giftCard: true } as const;
+
+export default async function Agenda({ searchParams }: { searchParams: Promise<{ desde?: string; aviso?: string; clave?: string; avisar?: string; avisarCancelacion?: string }> }) {
   const sp = await searchParams;
   const hoy = fechaISO(new Date());
   const desde = sp.desde && /^\d{4}-\d{2}-\d{2}$/.test(sp.desde) ? sp.desde : hoy;
@@ -50,9 +55,23 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
       inicio: { gte: aFechaUTC(desde, "00:00"), lt: aFechaUTC(sumarDias(desde, 7), "00:00") },
       OR: [{ estado: { not: "PENDIENTE_PAGO" } }, { expiraEn: { gt: ahora } }],
     },
-    include: { clienta: true, servicio: true },
+    include: datosAviso,
     orderBy: { inicio: "asc" },
   });
+
+  // WhatsApp con un toque: turno recién cargado / confirmado / cancelado, y recordatorios de mañana
+  const automatico = whatsappAutomatico();
+  const manana = sumarDias(hoy, 1);
+  const [paraAvisar, cancelado, recordatorios] = await Promise.all([
+    sp.avisar ? prisma.turno.findUnique({ where: { id: sp.avisar }, include: datosAviso }) : null,
+    sp.avisarCancelacion ? prisma.turno.findUnique({ where: { id: sp.avisarCancelacion }, include: datosAviso }) : null,
+    prisma.turno.findMany({
+      where: { estado: "CONFIRMADO", avisarWhatsapp: true, inicio: { gte: aFechaUTC(manana, "00:00"), lt: aFechaUTC(sumarDias(manana, 1), "00:00") } },
+      include: datosAviso,
+      orderBy: { inicio: "asc" },
+    }),
+  ]);
+  const aviso = (t: NonNullable<typeof paraAvisar>, tipo: "confirmacion" | "recordatorio" | "cancelacion") => linkAvisoWhatsapp(cfg, t, tipo);
 
   const activos = turnos.filter((t) => t.estado !== "CANCELADO");
   const deHoy = activos.filter((t) => fechaISO(t.inicio) === hoy).length;
@@ -107,6 +126,43 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
       {sp.clave === "nueva" && (
         <p role="status" className="mb-6 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Listo, tu contraseña nueva quedó guardada.</p>
       )}
+      {paraAvisar && paraAvisar.estado === "CONFIRMADO" && aviso(paraAvisar, "confirmacion") && (
+        <section role="status" className="card mb-6 flex flex-wrap items-center gap-3 !border-emerald-300 !bg-emerald-50 p-4 text-sm">
+          <p className="min-w-56 flex-1">
+            Turno de <strong>{paraAvisar.clienta.nombre}</strong> confirmado ({fechaHoraLarga(paraAvisar.inicio)}).
+            {paraAvisar.confirmacionWaEn ? " La confirmación por WhatsApp ya salió." : " Mandale la confirmación por WhatsApp:"}
+          </p>
+          <BotonAvisoWhatsapp href={aviso(paraAvisar, "confirmacion")!} turnoId={paraAvisar.id} tipo="confirmacion"
+            enviadoEn={paraAvisar.confirmacionWaEn?.toISOString()} destacado />
+        </section>
+      )}
+      {cancelado && aviso(cancelado, "cancelacion") && (
+        <section role="status" className="card mb-6 flex flex-wrap items-center gap-3 p-4 text-sm">
+          <p className="min-w-56 flex-1">Se canceló el turno de <strong>{cancelado.clienta.nombre}</strong>. ¿Le avisás por WhatsApp?</p>
+          <BotonAvisoWhatsapp href={aviso(cancelado, "cancelacion")!} turnoId={cancelado.id} tipo="cancelacion" destacado />
+        </section>
+      )}
+      {recordatorios.length > 0 && (
+        <section className="card mb-6 p-4">
+          <h2 className="font-semibold">Recordatorios por WhatsApp para mañana</h2>
+          <p className="mb-3 text-sm text-[#6b635b]">
+            {automatico
+              ? "Se mandan solos por WhatsApp a las 10 hs. Si alguno no salió, lo podés mandar desde acá."
+              : "Tocá cada botón: se abre tu WhatsApp con el mensaje listo para esa clienta y sólo tenés que enviarlo."}
+          </p>
+          <ul className="divide-y divide-[#f0ebe3]">
+            {recordatorios.map((t) => (
+              <li key={t.id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
+                <span className="w-14 font-mono font-semibold">{horaAR(t.inicio)}</span>
+                <span className="min-w-40 flex-1">{t.clienta.nombre} · {t.servicio.nombre}</span>
+                {aviso(t, "recordatorio") && (
+                  <BotonAvisoWhatsapp href={aviso(t, "recordatorio")!} turnoId={t.id} tipo="recordatorio" enviadoEn={t.recordatorioWaEn?.toISOString()} />
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {sp.aviso && (
         <p role="alert" className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{sp.aviso}</p>
       )}
@@ -142,9 +198,11 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
                       </div>
                       <EstadoBadge estado={t.estado} />
                       <div className="flex flex-wrap gap-1.5">
-                        {t.clienta.telefono && (
+                        {t.estado === "CONFIRMADO" && t.avisarWhatsapp && t.inicio > ahora && aviso(t, "confirmacion") ? (
+                          <BotonAvisoWhatsapp href={aviso(t, "confirmacion")!} turnoId={t.id} tipo="confirmacion" enviadoEn={t.confirmacionWaEn?.toISOString()} />
+                        ) : t.clienta.telefono ? (
                           <a className="btn-sec" target="_blank" rel="noopener" href={linkWhatsapp(t.clienta.telefono)}>WhatsApp</a>
-                        )}
+                        ) : null}
                         {t.estado === "PENDIENTE_PAGO" && (
                           <>
                             <EstadoForm id={t.id} desde={desde} estado="SENA_RECIBIDA" label="Seña recibida ✓" destacado />

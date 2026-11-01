@@ -7,6 +7,8 @@ import { calcularSlots } from "./slots";
 import { calcularSena, pideSena } from "./sena";
 import { aFechaUTC, diaSemana, fechaISO, sumarDias } from "./tiempo";
 import { enviarMail } from "./email";
+import { numeroWhatsapp } from "./formato";
+import { enviarWhatsappAutomatico, type TipoAviso } from "./whatsapp";
 import { ErrorReserva } from "./errores";
 import { aplicarGiftCard, devolverGiftCard } from "./giftcards";
 
@@ -133,8 +135,15 @@ export const reservaSchema = z.object({
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   hora: z.string().regex(/^\d{2}:\d{2}$/),
   nombre: z.string().trim().min(2, "Ingresá tu nombre").max(80),
-  email: z.string().trim().toLowerCase().email("Email inválido").max(120),
-  telefono: z.string().trim().min(6, "Ingresá un teléfono válido").max(30),
+  /** Opcional: hay clientas que sólo usan WhatsApp */
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(120)
+    .refine((v) => !v || z.string().email().safeParse(v).success, "Email inválido")
+    .default(""),
+  telefono: z.string().trim().min(6, "Ingresá un WhatsApp válido").max(30),
   notas: z.string().trim().max(500).default(""),
   /** Código de gift card (opcional) */
   giftCard: z.string().trim().max(20).default(""),
@@ -149,10 +158,41 @@ const incluir = { clienta: true, servicio: { include: { incluye: { select: { nom
  * Crea una reserva. Si hay seña configurada, el turno queda apartado hasta que
  * la clienta la abone por WhatsApp; si no, queda confirmado.
  */
+/** Por dónde se le avisa a la clienta. Sin email, sólo por WhatsApp. */
+export interface Avisos { mail: boolean; whatsapp: boolean }
+
+type TurnoConDatos = Prisma.TurnoGetPayload<{ include: typeof incluir }>;
+
+/** Manda el WhatsApp automático (si está configurado) y anota cuándo se mandó */
+async function avisarPorWhatsapp(turno: TurnoConDatos, tipo: TipoAviso): Promise<void> {
+  if (!turno.avisarWhatsapp) return;
+  if (!(await enviarWhatsappAutomatico(await getConfig(), turno, tipo))) return;
+  const campo = tipo === "confirmacion" ? "confirmacionWaEn" : tipo === "recordatorio" ? "recordatorioWaEn" : null;
+  if (campo) await prisma.turno.update({ where: { id: turno.id }, data: { [campo]: new Date() } });
+}
+
+/** La clienta: por email si lo dejó; si no, por su WhatsApp. No pisa la ficha de una existente. */
+async function buscarOCrearClienta(tx: Tx, d: { nombre: string; email: string; telefono: string }) {
+  const whatsapp = numeroWhatsapp(d.telefono);
+  if (d.email) {
+    const porEmail = await tx.clienta.findUnique({ where: { email: d.email } });
+    if (porEmail) return porEmail;
+    // Ya había reservado sin mail con este WhatsApp: le sumamos el mail a su ficha
+    const sinMail = await tx.clienta.findFirst({ where: { whatsapp, email: null }, orderBy: { createdAt: "asc" } });
+    if (sinMail) return tx.clienta.update({ where: { id: sinMail.id }, data: { email: d.email } });
+  } else {
+    const porWhatsapp = await tx.clienta.findFirst({ where: { whatsapp }, orderBy: { createdAt: "asc" } });
+    if (porWhatsapp) return porWhatsapp;
+  }
+  return tx.clienta.create({ data: { nombre: d.nombre, email: d.email || null, telefono: d.telefono, whatsapp } });
+}
+
 export async function crearReserva(
   datos: DatosReserva,
-  opciones: { porAdmin?: boolean; sinSena?: boolean } = {},
+  opciones: { porAdmin?: boolean; sinSena?: boolean; avisos?: Avisos } = {},
 ): Promise<{ turnoId: string; token: string; pendienteSena: boolean }> {
+  const email = (datos.email ?? "").trim().toLowerCase();
+  const avisos = { mail: (opciones.avisos?.mail ?? true) && Boolean(email), whatsapp: opciones.avisos?.whatsapp ?? true };
   const cfg = await getConfig();
   const cobrarSena = !opciones.sinSena && pideSena(cfg);
 
@@ -166,11 +206,7 @@ export async function crearReserva(
       }
 
       // Si la clienta ya existe no pisamos su ficha (nombre/teléfono los edita la profesional)
-      const clienta = await tx.clienta.upsert({
-        where: { email: datos.email },
-        update: {},
-        create: { nombre: datos.nombre, email: datos.email, telefono: datos.telefono },
-      });
+      const clienta = await buscarOCrearClienta(tx, { nombre: datos.nombre, email, telefono: datos.telefono });
 
       const inicio = aFechaUTC(datos.fecha, datos.hora);
       const gift = datos.giftCard ? await aplicarGiftCard(tx, datos.giftCard, servicio.id, servicio.precio) : null;
@@ -192,6 +228,8 @@ export async function crearReserva(
           expiraEn: pendiente ? new Date(limite) : null,
           notasClienta: datos.notas,
           creadoPorAdmin: Boolean(opciones.porAdmin),
+          avisarMail: avisos.mail,
+          avisarWhatsapp: avisos.whatsapp,
           token: randomBytes(24).toString("base64url"),
           giftCardId: gift?.id ?? null,
           montoGiftCard: gift?.monto ?? 0,
@@ -206,11 +244,13 @@ export async function crearReserva(
 
   const pendienteSena = turno.estado === "PENDIENTE_PAGO";
   const cfgActual = await getConfig();
-  await Promise.all(
-    pendienteSena
-      ? [enviarMail(mailReservaPendienteClienta(cfgActual, turno)), enviarMail(mailNuevaReservaProfesional(cfgActual, turno))]
-      : [enviarMail(mailConfirmacionClienta(cfgActual, turno)), enviarMail(mailNuevoTurnoProfesional(cfgActual, turno))],
-  );
+  await Promise.all([
+    ...(pendienteSena
+      ? [avisos.mail && enviarMail(mailReservaPendienteClienta(cfgActual, turno)), enviarMail(mailNuevaReservaProfesional(cfgActual, turno))]
+      : [avisos.mail && enviarMail(mailConfirmacionClienta(cfgActual, turno)), enviarMail(mailNuevoTurnoProfesional(cfgActual, turno))]),
+    // La confirmación por WhatsApp sale sola si está la API; si no, queda el botón de un toque en el panel
+    !pendienteSena && avisarPorWhatsapp(turno, "confirmacion"),
+  ]);
   return { turnoId: turno.id, token: turno.token, pendienteSena };
 }
 
@@ -238,7 +278,10 @@ export async function confirmarSena(turnoId: string): Promise<void> {
       include: incluir,
     });
   });
-  await enviarMail(mailConfirmacionClienta(await getConfig(), turno));
+  await Promise.all([
+    turno.avisarMail && enviarMail(mailConfirmacionClienta(await getConfig(), turno)),
+    avisarPorWhatsapp(turno, "confirmacion"),
+  ]);
 }
 
 export async function cancelarTurno(turnoId: string, por: "clienta" | "admin"): Promise<void> {
@@ -268,8 +311,9 @@ export async function cancelarTurno(turnoId: string, por: "clienta" | "admin"): 
 
   if (eraConfirmado) {
     await Promise.all([
-      enviarMail(mailCancelacion(cfg, turno, "clienta")),
+      turno.avisarMail && enviarMail(mailCancelacion(cfg, turno, "clienta")),
       enviarMail(mailCancelacion(cfg, turno, "profesional")),
+      por === "admin" && avisarPorWhatsapp(turno, "cancelacion"),
     ]);
   }
 }

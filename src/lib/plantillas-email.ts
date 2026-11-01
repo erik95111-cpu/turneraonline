@@ -92,7 +92,7 @@ ${p("Te recomendamos llegar 5 minutos antes y venir sin maquillaje en el rostro.
 ${boton(linkTurno(t), "Ver o cancelar mi turno")}
 ${cfg.politicaCancelacion ? `<p style="font:12px/1.5 Arial,sans-serif;color:#888">${esc(cfg.politicaCancelacion)}</p>` : ""}`);
   return {
-    to: t.clienta.email,
+    to: t.clienta.email ?? "",
     subject: `Turno confirmado · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
     html,
     text: `Hola ${t.clienta.nombre}, tu turno está confirmado.\n\n${textoPlano(t)}\n\nVer o cancelar: ${linkTurno(t)}`,
@@ -105,14 +105,14 @@ export function mailNuevoTurnoProfesional(cfg: Configuracion, t: TurnoCompleto):
   const html = layout(cfg, "Nuevo turno reservado", `
 ${p(`<strong>${esc(t.clienta.nombre)}</strong> reservó un turno.`)}
 ${detalle(t)}
-${p(`✉️ ${esc(t.clienta.email)}<br>📱 ${wa ? `<a href="${wa}">${esc(t.clienta.telefono)}</a>` : "-"}`)}
+${p(`✉️ ${esc(t.clienta.email ?? "sin mail (avisos por WhatsApp)")}<br>📱 ${wa ? `<a href="${wa}">${esc(t.clienta.telefono)}</a>` : "-"}`)}
 ${t.notasClienta ? p(`<strong>Comentario:</strong> ${esc(t.notasClienta)}`) : ""}
 ${boton(`${siteUrl()}/admin`, "Abrir la agenda")}`);
   return {
     to: cfg.emailProfesional,
     subject: `Nuevo turno: ${t.clienta.nombre} · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
     html,
-    text: `Nuevo turno de ${t.clienta.nombre} (${t.clienta.email}, ${t.clienta.telefono})\n\n${textoPlano(t)}\n\nComentario: ${t.notasClienta || "-"}`,
+    text: `Nuevo turno de ${t.clienta.nombre} (${t.clienta.email ?? "sin mail"}, ${t.clienta.telefono})\n\n${textoPlano(t)}\n\nComentario: ${t.notasClienta || "-"}`,
   };
 }
 
@@ -124,7 +124,7 @@ ${p(para === "clienta"
 ${detalle(t)}
 ${para === "clienta" ? boton(`${siteUrl()}/reservar`, "Reservar otro turno") : ""}`);
   return {
-    to: para === "clienta" ? t.clienta.email : cfg.emailProfesional,
+    to: para === "clienta" ? t.clienta.email ?? "" : cfg.emailProfesional,
     subject: `Turno cancelado · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
     html,
     text: `Turno cancelado (${t.clienta.nombre})\n\n${textoPlano(t)}`,
@@ -138,7 +138,7 @@ ${detalle(t)}
 ${cfg.direccion ? p(`📍 ${esc(cfg.direccion)}`) : ""}
 ${boton(linkTurno(t), "Ver o cancelar mi turno")}`);
   return {
-    to: t.clienta.email,
+    to: t.clienta.email ?? "",
     subject: `Recordatorio · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
     html,
     text: `Recordatorio de tu turno\n\n${textoPlano(t)}\n\nVer o cancelar: ${linkTurno(t)}`,
@@ -161,7 +161,7 @@ ${limite ? p(`⏰ Tenés tiempo hasta el <strong>${esc(limite)}</strong>. Si no 
 ${wa ? boton(wa, "Abonar la seña por WhatsApp") : ""}
 ${p(`<a href="${linkTurno(t)}" style="color:#8a6d3b">Ver mi reserva</a>`)}`);
   return {
-    to: t.clienta.email,
+    to: t.clienta.email ?? "",
     subject: `Reserva pendiente de seña · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
     html,
     text: [
@@ -181,7 +181,7 @@ export function mailNuevaReservaProfesional(cfg: Configuracion, t: TurnoCompleto
   const html = layout(cfg, "Nueva reserva: esperando la seña", `
 ${p(`<strong>${esc(t.clienta.nombre)}</strong> reservó un turno y te va a escribir por WhatsApp para abonar la seña.`)}
 ${detalle(t)}
-${p(`✉️ ${esc(t.clienta.email)}<br>📱 ${wa ? `<a href="${wa}">${esc(t.clienta.telefono)}</a>` : "-"}`)}
+${p(`✉️ ${esc(t.clienta.email ?? "sin mail (avisos por WhatsApp)")}<br>📱 ${wa ? `<a href="${wa}">${esc(t.clienta.telefono)}</a>` : "-"}`)}
 ${t.notasClienta ? p(`<strong>Comentario:</strong> ${esc(t.notasClienta)}`) : ""}
 ${p("Cuando cobres la seña, entrá al panel y tocá <strong>“Seña recibida”</strong> para confirmar el turno.")}
 ${boton(`${siteUrl()}/admin`, "Abrir la agenda")}`);
@@ -189,7 +189,7 @@ ${boton(`${siteUrl()}/admin`, "Abrir la agenda")}`);
     to: cfg.emailProfesional,
     subject: `Nueva reserva (esperando seña): ${t.clienta.nombre} · ${t.servicio.nombre} · ${fechaHoraLarga(t.inicio)}`,
     html,
-    text: `Nueva reserva de ${t.clienta.nombre} (${t.clienta.email}, ${t.clienta.telefono}) esperando la seña (te va a escribir por WhatsApp).\n\n${textoPlano(t)}\n\nCuando cobres la seña, confirmala desde el panel: ${siteUrl()}/admin`,
+    text: `Nueva reserva de ${t.clienta.nombre} (${t.clienta.email ?? "sin mail"}, ${t.clienta.telefono}) esperando la seña (te va a escribir por WhatsApp).\n\n${textoPlano(t)}\n\nCuando cobres la seña, confirmala desde el panel: ${siteUrl()}/admin`,
   };
 }
 

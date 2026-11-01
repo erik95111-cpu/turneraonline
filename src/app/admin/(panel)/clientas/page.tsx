@@ -34,7 +34,7 @@ export default async function Clientas({ searchParams }: { searchParams: Promise
             {clientas.map((c) => (
               <tr key={c.id}>
                 <td className="p-3"><Link href={`/admin/clientas/${c.id}`} className="font-medium hover:underline">{c.nombre}</Link></td>
-                <td className="p-3 text-[#6b635b]">{c.email}<br />{c.telefono}</td>
+                <td className="p-3 text-[#6b635b]">{c.email ?? <span className="italic">Sin mail</span>}<br />{c.telefono}</td>
                 <td className="p-3">{c._count.turnos}</td>
                 <td className="p-3 first-letter:uppercase">{c.turnos[0] ? fechaLarga(c.turnos[0].inicio) : "-"}</td>
               </tr>
