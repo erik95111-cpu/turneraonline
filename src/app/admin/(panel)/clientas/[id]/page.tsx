@@ -6,7 +6,9 @@ import { formatPrecio, linkWhatsapp } from "@/lib/formato";
 import { COLOR_ETIQUETA, ETIQUETAS_SUGERIDAS, diasParaCumple, edad, esNueva, eventosDelTurno } from "@/lib/clientas";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { BotonCopiar } from "@/components/BotonCopiar";
-import { agregarNotaAccion, borrarNotaAccion, editarClientaAccion, etiquetaClientaAccion } from "../../../acciones";
+import { BotonBorrar } from "@/components/BotonBorrar";
+import { IconoLapiz } from "@/components/Iconos";
+import { agregarNotaAccion, borrarClientaAccion, borrarNotaAccion, editarClientaAccion, editarNotaAccion, etiquetaClientaAccion } from "../../../acciones";
 
 const TIPOS_PIEL = ["Normal", "Seca", "Grasa", "Mixta", "Sensible", "Con acné", "Madura"];
 
@@ -17,7 +19,7 @@ const cuandoCorto = (d: Date) => d.toLocaleString("es-AR", { timeZone: "America/
 
 interface Props {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ editar?: string; ok?: string; error?: string; aviso?: string }>;
+  searchParams: Promise<{ editar?: string; editarNota?: string; ok?: string; error?: string; aviso?: string }>;
 }
 
 export default async function FichaClienta({ params, searchParams }: Props) {
@@ -55,6 +57,11 @@ export default async function FichaClienta({ params, searchParams }: Props) {
             ))}
           </div>
         </div>
+        <div className="flex gap-1.5">
+          <Link href={`/admin/clientas/${c.id}?editar=1`} className="btn-sec gap-1.5" title="Editar datos"><IconoLapiz /> Editar</Link>
+          <BotonBorrar accion={borrarClientaAccion} campos={{ id: c.id }} etiqueta={`Borrar a ${c.nombre}`} conTexto
+            pregunta={`¿Borrar a ${c.nombre}? Se borran también sus notas. No se puede deshacer.`} />
+        </div>
       </div>
 
       {sp.ok && <p role="status" className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{sp.ok}</p>}
@@ -69,7 +76,7 @@ export default async function FichaClienta({ params, searchParams }: Props) {
                 <p className="text-xs font-semibold tracking-wider text-[#8b8279] uppercase">Perfil</p>
                 <h2 className="font-semibold">Información de contacto</h2>
               </div>
-              {!editando && <Link href={`/admin/clientas/${c.id}?editar=1`} className="btn-sec">Editar</Link>}
+              {!editando && <Link href={`/admin/clientas/${c.id}?editar=1`} className="btn-sec !px-2.5" aria-label="Editar contacto" title="Editar"><IconoLapiz /></Link>}
             </div>
 
             {editando ? (
@@ -189,29 +196,44 @@ export default async function FichaClienta({ params, searchParams }: Props) {
           </section>
 
           {/* ── Notas privadas ── */}
-          <section className="card p-5">
+          <section id="notas" className="card scroll-mt-6 p-5">
             <p className="text-xs font-semibold tracking-wider text-[#8b8279] uppercase">Perfil interno</p>
             <h2 className="font-semibold">Notas privadas</h2>
             <p className="mt-1 text-sm text-[#6b635b]">Preferencias, productos usados, evolución… Sólo las ve el equipo, la clienta no.</p>
-            <form action={agregarNotaAccion} className="mt-3 grid gap-2">
+{!sp.editarNota && (
+                        <form action={agregarNotaAccion} className="mt-3 grid gap-2">
               <input type="hidden" name="id" value={c.id} />
               <textarea name="texto" rows={3} required maxLength={2000} placeholder="Ej: Usamos peeling suave, buena tolerancia. Volver en 30 días." className="input" aria-label="Nueva nota" />
               <button className="btn justify-self-start">Agregar nota</button>
             </form>
+            )}
             {c.registroNotas.length === 0 ? (
               <p className="mt-4 text-sm text-[#a49d94] italic">Todavía no registraste notas para esta clienta.</p>
             ) : (
               <ul className="mt-4 space-y-3">
                 {c.registroNotas.map((n) => (
                   <li key={n.id} className="rounded-xl bg-[#f7f2ea] p-3 text-sm">
-                    <p className="whitespace-pre-line">{n.texto}</p>
-                    <div className="mt-2 flex items-center justify-between gap-2 text-xs text-[#8b8279]">
-                      <span className="first-letter:uppercase">{cuandoCorto(n.createdAt)}{n.autor && ` · ${n.autor}`}</span>
-                      <form action={borrarNotaAccion}>
+                    {sp.editarNota === n.id ? (
+                      <form action={editarNotaAccion} className="grid gap-2">
                         <input type="hidden" name="notaId" value={n.id} />
-                        <button className="hover:text-red-700">Borrar</button>
+                        <textarea name="texto" rows={3} required maxLength={2000} defaultValue={n.texto} className="input" aria-label="Editar nota" autoFocus />
+                        <div className="flex gap-2">
+                          <button className="btn">Guardar</button>
+                          <Link href={`/admin/clientas/${c.id}#notas`} className="btn-sec">Cancelar</Link>
+                        </div>
                       </form>
-                    </div>
+                    ) : (
+                      <>
+                        <p className="whitespace-pre-line">{n.texto}</p>
+                        <div className="mt-2 flex items-center justify-between gap-2 text-xs text-[#8b8279]">
+                          <span className="first-letter:uppercase">{cuandoCorto(n.createdAt)}{n.autor && ` · ${n.autor}`}</span>
+                          <div className="flex gap-1">
+                            <Link href={`/admin/clientas/${c.id}?editarNota=${n.id}#notas`} className="btn-sec !px-2 !py-1" aria-label="Editar nota" title="Editar"><IconoLapiz className="h-3.5 w-3.5" /></Link>
+                            <BotonBorrar accion={borrarNotaAccion} campos={{ notaId: n.id }} etiqueta="Borrar nota" pregunta="¿Borrar esta nota?" />
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>

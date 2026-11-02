@@ -88,6 +88,20 @@ d("alta y edición de clientas", async () => {
     expect(await prisma.clienta.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject({ nombre: "Ana López", whatsapp: "5491133334444", direccion: "Calle 1", email: null });
   });
 
+  it("se borra una clienta cargada por error (con sus notas), pero no si tiene turnos", async () => {
+    const a = await c.crearClienta({ nombre: "Error de carga", telefono: "1199999999" }, "nota");
+    expect(await c.borrarClienta(a.id)).toBe("Error de carga");
+    expect(await prisma.clienta.count({ where: { id: a.id } })).toBe(0);
+    expect(await prisma.notaClienta.count({ where: { clientaId: a.id } })).toBe(0);
+
+    const b = await c.crearClienta({ nombre: "Con historial", telefono: "1188888888" });
+    const servicio = await prisma.servicio.create({ data: { nombre: "Prueba borrar", duracionMin: 30, precio: 1000 } });
+    await prisma.turno.create({ data: { clientaId: b.id, servicioId: servicio.id, inicio: new Date(), fin: new Date(), precio: 1000 } });
+    await expect(c.borrarClienta(b.id)).rejects.toThrow(/tiene 1 turno en su historial/);
+    await prisma.turno.deleteMany({ where: { clientaId: b.id } });
+    await prisma.servicio.delete({ where: { id: servicio.id } });
+  });
+
   it("las etiquetas se ponen y se sacan tocándolas", async () => {
     const a = await c.crearClienta({ nombre: "Ana", telefono: "1111111111" });
     await c.alternarEtiqueta(a.id, "VIP");

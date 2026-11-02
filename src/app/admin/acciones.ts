@@ -10,7 +10,7 @@ import { hashPassword, verificarPassword } from "@/lib/passwords";
 import { ErrorReserva, cancelarTurno, confirmarSena, crearReserva, reservaSchema } from "@/lib/turnos";
 import { probarEnvio } from "@/lib/email";
 import { guardarCombo } from "@/lib/combos";
-import { ErrorClientaExistente, actualizarClienta, alternarEtiqueta, crearClienta } from "@/lib/clientas";
+import { ErrorClientaExistente, actualizarClienta, alternarEtiqueta, borrarClienta, crearClienta } from "@/lib/clientas";
 import { activarGiftCard, anularGiftCard, crearGiftCard, giftCardSchema } from "@/lib/giftcards";
 import { aFechaUTC } from "@/lib/tiempo";
 import { numeroWhatsapp } from "@/lib/formato";
@@ -239,6 +239,30 @@ export async function agregarNotaAccion(fd: FormData) {
   const texto = txt(fd, "texto").slice(0, 2000);
   if (texto) await prisma.notaClienta.create({ data: { clientaId: id, texto, autor: yo.nombre } });
   revalidatePath(`/admin/clientas/${id}`);
+}
+
+export async function borrarClientaAccion(fd: FormData) {
+  await requireAdmin();
+  const id = txt(fd, "id");
+  let nombre = "";
+  try {
+    nombre = await borrarClienta(id);
+  } catch (err) {
+    if (!(err instanceof ErrorReserva)) throw err;
+    redirect(`/admin/clientas?${new URLSearchParams({ error: err.message })}`);
+  }
+  revalidatePath("/admin/clientas");
+  redirect(`/admin/clientas?${new URLSearchParams({ ok: `Se borró a ${nombre}` })}`);
+}
+
+export async function editarNotaAccion(fd: FormData) {
+  await requireAdmin();
+  const texto = txt(fd, "texto").slice(0, 2000);
+  const nota = texto
+    ? await prisma.notaClienta.update({ where: { id: txt(fd, "notaId") }, data: { texto } })
+    : await prisma.notaClienta.findUniqueOrThrow({ where: { id: txt(fd, "notaId") } });
+  revalidatePath(`/admin/clientas/${nota.clientaId}`);
+  redirect(`/admin/clientas/${nota.clientaId}#notas`);
 }
 
 export async function borrarNotaAccion(fd: FormData) {

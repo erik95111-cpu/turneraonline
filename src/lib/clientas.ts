@@ -79,6 +79,22 @@ export async function actualizarClienta(id: string, entrada: DatosClienta) {
   return prisma.clienta.update({ where: { id }, data: { ...d, email: d.email || null, whatsapp: numeroWhatsapp(d.telefono) } });
 }
 
+/**
+ * Borra una clienta cargada por error (con sus notas). Si ya tiene turnos no se borra,
+ * para no perder el historial ni las estadísticas.
+ */
+export async function borrarClienta(id: string): Promise<string> {
+  const c = await prisma.clienta.findUnique({ where: { id }, include: { _count: { select: { turnos: true } } } });
+  if (!c) throw new ErrorReserva("La clienta ya no existe");
+  if (c._count.turnos > 0) {
+    throw new ErrorReserva(
+      `${c.nombre} tiene ${c._count.turnos} ${c._count.turnos === 1 ? "turno" : "turnos"} en su historial, así que no se puede borrar. Si algún dato está mal, editalo con el lápiz.`,
+    );
+  }
+  await prisma.clienta.delete({ where: { id } });
+  return c.nombre;
+}
+
 /** Normaliza una etiqueta: sin espacios de más, primera letra en mayúscula */
 export function limpiarEtiqueta(texto: string): string {
   const t = texto.trim().replace(/\s+/g, " ").slice(0, 30);
