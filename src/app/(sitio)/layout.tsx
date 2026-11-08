@@ -2,8 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { getConfig } from "@/lib/config";
 import { prisma } from "@/lib/db";
-import { linkInstagram, linkWhatsapp, resumenHorarios } from "@/lib/formato";
+import { linkWhatsapp, resumenHorarios } from "@/lib/formato";
 import { BotonTema } from "@/components/BotonTema";
+import { RedesSociales } from "@/components/RedesSociales";
 import { CortinaDorada } from "@/components/CortinaDorada";
 
 export const dynamic = "force-dynamic";
@@ -50,12 +51,10 @@ export default async function SitioLayout({ children }: { children: React.ReactN
             {cfg.whatsapp && (
               <p><a className="hover:text-gold-light" href={linkWhatsapp(cfg.whatsapp, "Hola! Quería hacer una consulta")} target="_blank" rel="noopener">WhatsApp · {cfg.whatsapp}</a></p>
             )}
-            {cfg.instagram && (
-              <p><a className="hover:text-gold-light" href={linkInstagram(cfg.instagram)} target="_blank" rel="noopener">Instagram · {cfg.instagram}</a></p>
-            )}
             {cfg.direccion && (
               <p><a className="hover:text-gold-light" href={`https://maps.google.com/?q=${encodeURIComponent(cfg.direccion)}`} target="_blank" rel="noopener">{cfg.direccion}</a></p>
             )}
+            <div className="pt-3"><RedesSociales instagram={cfg.instagram} tiktok={cfg.tiktok} /></div>
           </div>
           <div className="text-sm text-piedra md:text-right">
             <p className="eyebrow mb-3">Días de atención</p>

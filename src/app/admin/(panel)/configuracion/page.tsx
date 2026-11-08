@@ -54,7 +54,8 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
           <Campo name="nombreProfesional" label="Nombre de la profesional" />
           <Campo name="emailProfesional" label="Email donde recibís los avisos de turnos" type="email" className="sm:col-span-2" />
           <Campo name="whatsapp" label="WhatsApp (ahí te escriben para abonar la seña)" ayuda="Con código de país, ej: +54 9 11 2345 6789" />
-          <Campo name="instagram" label="Instagram" ayuda="Ej: @healthyskin" />
+          <Campo name="instagram" label="Instagram" ayuda="Usuario (@healthyskin) o el link de su perfil" />
+          <Campo name="tiktok" label="TikTok" ayuda="Usuario (@healthyskin) o el link de su perfil" />
           <Campo name="direccion" label="Dirección" className="sm:col-span-2" />
           <div className="sm:col-span-2">
             <label className="lbl" htmlFor="sobreMi">Sobre mí (se muestra en la web)</label>

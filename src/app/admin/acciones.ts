@@ -282,6 +282,7 @@ export async function guardarConfiguracion(fd: FormData) {
     emailProfesional: txt(fd, "emailProfesional"),
     whatsapp: txt(fd, "whatsapp"),
     instagram: txt(fd, "instagram"),
+    tiktok: txt(fd, "tiktok"),
     direccion: txt(fd, "direccion"),
     sobreMi: txt(fd, "sobreMi"),
     videoUrl: txt(fd, "videoUrl"),

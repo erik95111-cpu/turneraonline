@@ -212,6 +212,8 @@ model Configuracion {
   emailProfesional     String   @default("")
   whatsapp             String   @default("")
   instagram            String   @default("")
+  /// Usuario (@…) o link de TikTok
+  tiktok               String   @default("")
   direccion            String   @default("")
   sobreMi              String   @default("")
   /// URL de YouTube, Vimeo o un .mp4

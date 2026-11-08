@@ -50,6 +50,11 @@ export function linkWhatsapp(numero: string, texto?: string): string {
   return `https://wa.me/${limpio}${q}`;
 }
 
+export function linkTiktok(usuario: string): string {
+  if (usuario.startsWith("http")) return usuario;
+  return `https://www.tiktok.com/@${usuario.replace(/^@/, "")}`;
+}
+
 export function linkInstagram(usuario: string): string {
   if (usuario.startsWith("http")) return usuario;
   return `https://instagram.com/${usuario.replace(/^@/, "")}`;
