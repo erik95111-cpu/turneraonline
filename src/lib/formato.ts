@@ -50,13 +50,16 @@ export function linkWhatsapp(numero: string, texto?: string): string {
   return `https://wa.me/${limpio}${q}`;
 }
 
+/** Saca los códigos de seguimiento que agregan las apps al compartir (?igsh=…, ?_r=1&_t=…) */
+const sinSeguimiento = (url: string) => url.trim().split(/[?#]/)[0];
+
 export function linkTiktok(usuario: string): string {
-  if (usuario.startsWith("http")) return usuario;
-  return `https://www.tiktok.com/@${usuario.replace(/^@/, "")}`;
+  if (usuario.startsWith("http")) return sinSeguimiento(usuario);
+  return `https://www.tiktok.com/@${usuario.trim().replace(/^@/, "")}`;
 }
 
 export function linkInstagram(usuario: string): string {
-  if (usuario.startsWith("http")) return usuario;
+  if (usuario.startsWith("http")) return sinSeguimiento(usuario);
   return `https://instagram.com/${usuario.replace(/^@/, "")}`;
 }
 
