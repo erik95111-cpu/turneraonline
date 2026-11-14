@@ -10,6 +10,7 @@ import { hashPassword, verificarPassword } from "@/lib/passwords";
 import { ErrorReserva, cancelarTurno, confirmarSena, crearReserva, reservaSchema } from "@/lib/turnos";
 import { probarEnvio } from "@/lib/email";
 import { guardarCombo } from "@/lib/combos";
+import { enviarRecordatorioMail, enviarRecordatoriosDelDia } from "@/lib/recordatorios";
 import { ErrorClientaExistente, actualizarClienta, alternarEtiqueta, borrarClienta, crearClienta } from "@/lib/clientas";
 import { activarGiftCard, anularGiftCard, crearGiftCard, giftCardSchema } from "@/lib/giftcards";
 import { aFechaUTC } from "@/lib/tiempo";
@@ -29,6 +30,40 @@ export async function salir() {
 }
 
 // ─── Turnos ────────────────────────────────────────────────
+
+// ─── Recordatorios a mano ──────────────────────────────────
+
+function volverRecordatorios(fecha: string, q: Record<string, string>): never {
+  redirect(`/admin?${new URLSearchParams({ rec: fecha, ...q })}#recordatorios`);
+}
+
+export async function enviarRecordatorioMailAccion(fd: FormData) {
+  await requireAdmin();
+  const fecha = txt(fd, "rec");
+  let nombre = "";
+  try {
+    nombre = await enviarRecordatorioMail(txt(fd, "id"));
+  } catch (err) {
+    if (!(err instanceof ErrorReserva)) throw err;
+    volverRecordatorios(fecha, { recError: err.message });
+  }
+  revalidatePath("/admin");
+  volverRecordatorios(fecha, { recOk: `Recordatorio por mail enviado a ${nombre}` });
+}
+
+export async function enviarRecordatoriosDelDiaAccion(fd: FormData) {
+  await requireAdmin();
+  const fecha = txt(fd, "rec");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) volverRecordatorios(fecha, { recError: "Fecha inválida" });
+  const r = await enviarRecordatoriosDelDia(fecha);
+  revalidatePath("/admin");
+  const partes = [
+    `${r.enviados} ${r.enviados === 1 ? "mail enviado" : "mails enviados"}`,
+    r.fallidos ? `${r.fallidos} no se pudieron mandar (revisá el envío de mails en Configuración)` : "",
+    r.sinMail ? `${r.sinMail} sin mail: mandales el recordatorio por WhatsApp` : "",
+  ].filter(Boolean);
+  volverRecordatorios(fecha, r.fallidos ? { recError: partes.join(" · ") } : { recOk: partes.join(" · ") });
+}
 
 /** Se tocó el botón de WhatsApp de un turno: queda anotado cuándo se mandó */
 export async function marcarAvisoWhatsapp(turnoId: string, tipo: "confirmacion" | "recordatorio") {

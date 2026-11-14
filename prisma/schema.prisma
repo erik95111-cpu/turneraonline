@@ -233,5 +233,8 @@ model Configuracion {
   giftcardsActivas     Boolean  @default(true)
   giftcardMonto        Int      @default(50000)
   giftcardMeses        Int      @default(2)
+  /// Última vez que corrió el recordatorio automático por mail (para ver en el panel)
+  recordatoriosAutoEn        DateTime?
+  recordatoriosAutoResultado String    @default("")
   updatedAt            DateTime @updatedAt
 }

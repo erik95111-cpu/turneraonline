@@ -1,6 +1,6 @@
 import type { Administrador, Clienta, Configuracion, GiftCard, Servicio, Turno } from "@prisma/client";
 import { formatDuracion, formatPrecio, linkWhatsapp } from "./formato";
-import { fechaHoraLarga } from "./tiempo";
+import { fechaHoraLarga, fechaISO, fechaLarga, sumarDias } from "./tiempo";
 import { siteUrl } from "./config";
 import type { Mail } from "./email";
 
@@ -132,8 +132,17 @@ ${para === "clienta" ? boton(`${siteUrl()}/reservar`, "Reservar otro turno") : "
   };
 }
 
+/** “Te esperamos mañana” / “hoy” / “el sábado 7 de noviembre”, según cuándo se manda */
+function tituloRecordatorio(inicio: Date): string {
+  const dia = fechaISO(inicio);
+  const hoy = fechaISO(new Date());
+  if (dia === hoy) return "Te esperamos hoy";
+  if (dia === sumarDias(hoy, 1)) return "Te esperamos mañana";
+  return `Te esperamos el ${fechaLarga(inicio)}`;
+}
+
 export function mailRecordatorio(cfg: Configuracion, t: TurnoCompleto): Mail {
-  const html = layout(cfg, "Te esperamos mañana", `
+  const html = layout(cfg, tituloRecordatorio(t.inicio), `
 ${p(`Hola ${esc(t.clienta.nombre.split(" ")[0])}, te recordamos tu turno:`)}
 ${detalle(t)}
 ${cfg.direccion ? p(`📍 ${esc(cfg.direccion)}`) : ""}

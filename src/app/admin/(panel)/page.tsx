@@ -6,12 +6,13 @@ import { formatPrecio, linkWhatsapp } from "@/lib/formato";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { BotonAvisoWhatsapp } from "@/components/BotonAvisoWhatsapp";
 import { linkAvisoWhatsapp, linkImagenTurno } from "@/lib/whatsapp";
-import { cambiarEstadoTurno } from "../acciones";
+import { cambiarEstadoTurno, enviarRecordatorioMailAccion, enviarRecordatoriosDelDiaAccion } from "../acciones";
+import { turnosDelDia } from "@/lib/recordatorios";
 
 /** Lo que hace falta para armar el mensaje de WhatsApp de un turno */
 const datosAviso = { clienta: true, servicio: { include: { incluye: { select: { nombre: true } } } }, giftCard: true } as const;
 
-export default async function Agenda({ searchParams }: { searchParams: Promise<{ desde?: string; aviso?: string; clave?: string; avisar?: string; avisarCancelacion?: string }> }) {
+export default async function Agenda({ searchParams }: { searchParams: Promise<{ desde?: string; aviso?: string; clave?: string; avisar?: string; avisarCancelacion?: string; rec?: string; recOk?: string; recError?: string }> }) {
   const sp = await searchParams;
   const hoy = fechaISO(new Date());
   const desde = sp.desde && /^\d{4}-\d{2}-\d{2}$/.test(sp.desde) ? sp.desde : hoy;
@@ -62,14 +63,12 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
   // WhatsApp con un toque: turno recién cargado / confirmado / cancelado, confirmaciones que
   // faltan mandar (por ej. reservas de la web) y recordatorios de mañana
   const manana = sumarDias(hoy, 1);
+  // Día de los recordatorios: mañana, salvo que elija otro
+  const diaRec = sp.rec && /^\d{4}-\d{2}-\d{2}$/.test(sp.rec) ? sp.rec : manana;
   const [paraAvisar, cancelado, recordatorios, sinConfirmar] = await Promise.all([
     sp.avisar ? prisma.turno.findUnique({ where: { id: sp.avisar }, include: datosAviso }) : null,
     sp.avisarCancelacion ? prisma.turno.findUnique({ where: { id: sp.avisarCancelacion }, include: datosAviso }) : null,
-    prisma.turno.findMany({
-      where: { estado: "CONFIRMADO", avisarWhatsapp: true, inicio: { gte: aFechaUTC(manana, "00:00"), lt: aFechaUTC(sumarDias(manana, 1), "00:00") } },
-      include: datosAviso,
-      orderBy: { inicio: "asc" },
-    }),
+    turnosDelDia(diaRec),
     prisma.turno.findMany({
       where: { estado: "CONFIRMADO", avisarWhatsapp: true, confirmacionWaEn: null, inicio: { gt: ahora }, NOT: { id: sp.avisar ?? "" } },
       include: datosAviso,
@@ -167,25 +166,68 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<{
           </ul>
         </section>
       )}
-      {recordatorios.length > 0 && (
-        <section className="card mb-6 p-4">
-          <h2 className="font-semibold">Recordatorios por WhatsApp para mañana</h2>
-          <p className="mb-3 text-sm text-[#6b635b]">
-            Tocá cada botón: se abre tu WhatsApp con el mensaje listo para esa clienta (con la tarjeta del turno) y sólo tenés que enviarlo.
-          </p>
-          <ul className="divide-y divide-[#f0ebe3]">
-            {recordatorios.map((t) => (
-              <li key={t.id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
-                <span className="w-14 font-mono font-semibold">{horaAR(t.inicio)}</span>
-                <span className="min-w-40 flex-1">{t.clienta.nombre} · {t.servicio.nombre}</span>
-                {aviso(t, "recordatorio") && (
-                  <BotonAvisoWhatsapp href={aviso(t, "recordatorio")!} imagen={linkImagenTurno(t, "recordatorio")} turnoId={t.id} tipo="recordatorio" enviadoEn={t.recordatorioWaEn?.toISOString()} />
-                )}
-              </li>
+      <section id="recordatorios" className="card mb-6 scroll-mt-6 p-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Recordatorios</h2>
+            <p className="text-sm text-[#6b635b]">Mandá el recordatorio a cada clienta por WhatsApp o por mail. Se puede reenviar.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[[hoy, "Hoy"], [manana, "Mañana"], [sumarDias(hoy, 2), "Pasado mañana"]].map(([f, t]) => (
+              <Link key={f} href={`/admin?rec=${f}#recordatorios`} className={diaRec === f ? "btn" : "btn-sec"}>{t}</Link>
             ))}
-          </ul>
-        </section>
-      )}
+            <form className="flex gap-1.5">
+              <input type="date" name="rec" defaultValue={diaRec} className="input !w-auto !py-1.5" aria-label="Otro día" />
+              <button className="btn-sec">Ver</button>
+            </form>
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs text-[#6b635b]">
+          {cfg.recordatoriosAutoEn
+            ? <>Recordatorio automático por mail: corrió el <span className="first-letter:uppercase">{fechaHoraLarga(cfg.recordatoriosAutoEn)}</span> · {cfg.recordatoriosAutoResultado}</>
+            : <span className="text-amber-800">El recordatorio automático por mail todavía no registró ninguna ejecución. Mientras tanto, mandalos desde acá.</span>}
+        </p>
+        {sp.recOk && <p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{sp.recOk}</p>}
+        {sp.recError && <p role="alert" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{sp.recError}</p>}
+
+        <h3 className="mt-4 mb-1 text-sm font-semibold first-letter:uppercase">{fechaLarga(aFechaUTC(diaRec, "12:00"))}{diaRec === manana ? " · mañana" : diaRec === hoy ? " · hoy" : ""}</h3>
+        {recordatorios.length === 0 ? (
+          <p className="py-3 text-sm text-[#a49d94]">No hay turnos ese día.</p>
+        ) : (
+          <>
+            <ul className="divide-y divide-[#f0ebe3]">
+              {recordatorios.map((t) => (
+                <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5 text-sm">
+                  <span className="w-14 font-mono font-semibold">{horaAR(t.inicio)}</span>
+                  <span className="min-w-48 flex-1">
+                    <strong>{t.clienta.nombre}</strong> · {t.servicio.nombre}
+                    {t.estado === "PENDIENTE_PAGO" && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Esperando seña</span>}
+                  </span>
+                  {aviso(t, "recordatorio") && (
+                    <BotonAvisoWhatsapp href={aviso(t, "recordatorio")!} imagen={linkImagenTurno(t, "recordatorio")} turnoId={t.id} tipo="recordatorio" enviadoEn={t.recordatorioWaEn?.toISOString()} />
+                  )}
+                  {t.clienta.email ? (
+                    <form action={enviarRecordatorioMailAccion}>
+                      <input type="hidden" name="id" value={t.id} />
+                      <input type="hidden" name="rec" value={diaRec} />
+                      <button className={t.recordatorioEnviado ? "btn-sec !text-emerald-800" : "btn-sec"} title={t.recordatorioEnviado ? "Tocá para volver a mandarlo" : undefined}>
+                        {t.recordatorioEnviado ? "✓ Mail enviado" : "Enviar recordatorio por mail"}
+                      </button>
+                    </form>
+                  ) : <span className="text-xs text-[#a49d94]">Sin mail</span>}
+                </li>
+              ))}
+            </ul>
+            {recordatorios.some((t) => t.clienta.email && !t.recordatorioEnviado) && (
+              <form action={enviarRecordatoriosDelDiaAccion} className="mt-3">
+                <input type="hidden" name="rec" value={diaRec} />
+                <button className="btn">Enviar todos los mails que faltan</button>
+              </form>
+            )}
+          </>
+        )}
+      </section>
       {sp.aviso && (
         <p role="alert" className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{sp.aviso}</p>
       )}
